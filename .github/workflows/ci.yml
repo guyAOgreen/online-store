@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Cancel superseded runs for the same PR or branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    # To add PostgreSQL integration tests later, declare the database here, e.g.
+    #
+    # services:
+    #   postgres:
+    #     image: postgres:16.2
+    #     env: { POSTGRES_USER: admin, POSTGRES_PASSWORD: admin, POSTGRES_DB: store }
+    #     ports: ['5433:5432']
+    #     options: >-
+    #       --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    #
+    # The existing unit tests use @WebMvcTest with mocked repositories and need no database.
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # Only runs on master write to the dependency cache; PR runs read from it.
+          cache-read-only: ${{ github.ref != 'refs/heads/master' }}
+
+      - name: Build, check and package
+        run: ./gradlew clean check bootJar
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+          if-no-files-found: ignore
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/
+          if-no-files-found: ignore
+
+      - name: Upload application jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-boot-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
