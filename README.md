@@ -44,7 +44,8 @@ The same gate can be run locally with:
 ./gradlew clean check bootJar
 ```
 
-The build declares a Java 17 toolchain. If JDK 17 is not installed, Gradle downloads it automatically via the Foojay toolchain resolver.
+Gradle itself needs a JDK to start: install any JDK that Gradle 8.11 can run on (Java 17 to 23 are good choices) before running the wrapper.
+The build then declares a Java 17 toolchain. If JDK 17 is not the installed JDK, the Foojay toolchain resolver downloads it automatically for compiling and testing.
 The tests use mocked repositories, so no database is required to run them.
 
 # Data model
