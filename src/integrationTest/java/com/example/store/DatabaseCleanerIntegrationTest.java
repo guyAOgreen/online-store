@@ -16,20 +16,47 @@ class DatabaseCleanerIntegrationTest extends AbstractIntegrationTest {
     private DatabaseCleaner databaseCleaner;
 
     @Test
-    void deletesRowsInsertedAboveTheSeededBaseline() {
+    void removesRowsInsertedByTests() {
         jdbcTemplate.update("INSERT INTO customer (id, name) VALUES (9001, 'Temporary Customer')");
         jdbcTemplate.update(
                 "INSERT INTO \"order\" (id, description, customer_id) VALUES (90001, 'Temporary order', 9001)");
 
-        databaseCleaner.deleteRowsCreatedByTests();
+        databaseCleaner.restoreSeededData();
 
         assertThat(count("customer")).isEqualTo(SEEDED_CUSTOMERS);
         assertThat(count("\"order\"")).isEqualTo(SEEDED_ORDERS);
     }
 
     @Test
+    void restoresSeededRowsModifiedByTests() {
+        // Reachable through the API today: POST /customer with an existing id merges into that row.
+        jdbcTemplate.update("UPDATE customer SET name = 'Renamed By Test' WHERE id = 1");
+        jdbcTemplate.update("UPDATE \"order\" SET customer_id = 2 WHERE id = 158");
+
+        databaseCleaner.restoreSeededData();
+
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM customer WHERE id = 1", String.class))
+                .isEqualTo("Muriel Donnelly");
+        assertThat(jdbcTemplate.queryForObject("SELECT customer_id FROM \"order\" WHERE id = 158", Long.class))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    void restoresSeededRowsDeletedByTests() {
+        jdbcTemplate.update("DELETE FROM \"order\" WHERE customer_id = 1");
+        jdbcTemplate.update("DELETE FROM customer WHERE id = 1");
+
+        databaseCleaner.restoreSeededData();
+
+        assertThat(count("customer")).isEqualTo(SEEDED_CUSTOMERS);
+        assertThat(count("\"order\"")).isEqualTo(SEEDED_ORDERS);
+        assertThat(jdbcTemplate.queryForObject("SELECT name FROM customer WHERE id = 1", String.class))
+                .isEqualTo("Muriel Donnelly");
+    }
+
+    @Test
     void leavesSeededRowsAlone() {
-        databaseCleaner.deleteRowsCreatedByTests();
+        databaseCleaner.restoreSeededData();
 
         assertThat(count("customer")).isEqualTo(SEEDED_CUSTOMERS);
         assertThat(count("\"order\"")).isEqualTo(SEEDED_ORDERS);

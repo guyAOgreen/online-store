@@ -32,7 +32,7 @@ public abstract class AbstractIntegrationTest {
     private DatabaseCleaner databaseCleaner;
 
     @AfterEach
-    void deleteRowsCreatedByTest() {
-        databaseCleaner.deleteRowsCreatedByTests();
+    void restoreSeededData() {
+        databaseCleaner.restoreSeededData();
     }
 }

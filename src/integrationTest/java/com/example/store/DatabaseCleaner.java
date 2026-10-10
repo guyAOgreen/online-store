@@ -8,39 +8,48 @@ import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitializat
 import org.springframework.boot.test.context.TestComponent;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Removes rows that tests created, leaving the Liquibase-seeded data in place. After the migrations run it records the
- * highest ID in each table; cleanup deletes anything above that. Child tables are listed before their parents so
- * foreign keys are satisfied.
+ * Puts the database back to the Liquibase-seeded state after each test. Once the migrations have run it copies every
+ * table into a {@code test_baseline} schema; restoring truncates the real tables and reloads them from that copy, so
+ * rows a test inserted, modified or deleted are all undone. Child tables are listed before their parents so the reload
+ * satisfies foreign keys.
  */
 @TestComponent
 @DependsOnDatabaseInitialization
 @RequiredArgsConstructor
 public class DatabaseCleaner {
 
-    /** Delete order matters: children first. Add new tables here when adding entities. */
+    /** Children first. Add new tables here when adding entities or join tables. */
     private static final List<String> TABLES = List.of("\"order\"", "customer");
 
+    private static final String BASELINE_SCHEMA = "test_baseline";
+
     private final JdbcTemplate jdbcTemplate;
-    private final Map<String, Long> baselineMaxIds = new LinkedHashMap<>();
 
     @PostConstruct
-    void recordBaseline() {
+    void snapshotBaseline() {
+        jdbcTemplate.execute("CREATE SCHEMA " + BASELINE_SCHEMA);
         for (String table : TABLES) {
-            Long maxId = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(id), 0) FROM " + table, Long.class);
-            baselineMaxIds.put(table, maxId);
+            jdbcTemplate.execute("CREATE TABLE " + baseline(table) + " AS TABLE " + table);
         }
     }
 
-    public void deleteRowsCreatedByTests() {
-        baselineMaxIds.forEach((table, maxId) -> jdbcTemplate.update("DELETE FROM " + table + " WHERE id > ?", maxId));
+    public void restoreSeededData() {
+        jdbcTemplate.execute("TRUNCATE " + String.join(", ", TABLES));
+        // Parents first so foreign keys resolve as rows are reloaded.
+        for (int i = TABLES.size() - 1; i >= 0; i--) {
+            String table = TABLES.get(i);
+            jdbcTemplate.execute("INSERT INTO " + table + " SELECT * FROM " + baseline(table));
+        }
     }
 
     public List<String> cleanedTables() {
         return TABLES;
+    }
+
+    private static String baseline(String table) {
+        return BASELINE_SCHEMA + "." + table;
     }
 }
