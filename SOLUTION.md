@@ -1,0 +1,15 @@
+# Solution notes
+
+This file records the decisions made while completing the assignment, one section per GitHub issue, so they can be read (and challenged) in one place. Each section says what was chosen, what else was considered, and why.
+
+## #2 PostgreSQL integration and migration test infrastructure
+
+**Separate `integrationTest` Gradle suite.** Database-backed tests live in `src/integrationTest` with their own task, and `check` runs both suites. Considered JUnit tags in one source set (the boundary is only a convention; a forgotten tag puts a Docker test in the fast suite) and putting everything in `test` (every unit-test run would need Docker). The separate suite keeps `./gradlew test` fast, gives CI distinct results per suite, and costs about fifteen lines of Gradle.
+
+**Testcontainers with the production image.** One `postgres:16.2` container per run, declared as a `@ServiceConnection` bean and shared through Spring's context cache. No Docker makes the suite fail rather than skip: a CI run that silently tested nothing would defeat the point of the suite. The application configuration is untouched, so loading the context already proves Liquibase applies cleanly and Hibernate's `ddl-auto: validate` agrees with the schema. Testcontainers is pinned to 1.21.4 because the 1.20.4 that Spring Boot 3.4.2 manages cannot talk to Docker Engine 29 (minimum API version 1.44); 1.21.4 is the last 1.x release and keeps the same artifact names.
+
+**Cleanup by ID rather than transactional rollback.** Tests are not `@Transactional`. A wrapping transaction would hide the behaviour later issues need to observe: open-in-view and lazy loading (#4), and real query counts (#9, since the session cache would absorb repeated reads). Instead a `DatabaseCleaner` records the highest ID per table after the migrations and deletes anything above it after each test. A guard test fails if an entity is added without registering its table.
+
+**Writes are not yet tested.** The seed data inserts explicit IDs without advancing the `BIGSERIAL` sequences, so the first POST collides with ID 1. That is #3, which adds the first write tests on this infrastructure. Rows the tests insert directly use explicit IDs above the seeded range for the same reason.
+
+**Upgrade harness.** `UpgradeDatabase` creates an empty database on the shared container; `LiquibaseRunner` migrates to a named changeset, the test inserts representative rows (names with apostrophes and accents, a customer with no orders, extra orders for an existing customer), then migrates to latest and checks the rows and the foreign key survive. Changesets are addressed by ID so the production changelog carries no test-only tags. Today nothing follows `2-data`, so the harness mostly proves itself; #3 and #7 add the first real upgrade tests. A schema diff between fresh-install and upgrade paths was left out because the changelog is straight-line and both paths cannot differ yet.

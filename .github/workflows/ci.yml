@@ -19,17 +19,7 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
 
-    # To add PostgreSQL integration tests later, declare the database here, e.g.
-    #
-    # services:
-    #   postgres:
-    #     image: postgres:16.2
-    #     env: { POSTGRES_USER: admin, POSTGRES_PASSWORD: admin, POSTGRES_DB: store }
-    #     ports: ['5433:5432']
-    #     options: >-
-    #       --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-    #
-    # The existing unit tests use @WebMvcTest with mocked repositories and need no database.
+    # Integration tests use Testcontainers; Docker is preinstalled on ubuntu-latest runners.
 
     steps:
       - name: Check out
@@ -58,6 +48,8 @@ jobs:
           path: |
             build/test-results/test/
             build/reports/tests/test/
+            build/test-results/integrationTest/
+            build/reports/tests/integrationTest/
           if-no-files-found: ignore
 
       - name: Upload JaCoCo coverage report
