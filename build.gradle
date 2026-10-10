@@ -31,6 +31,35 @@ spotless {
     }
 }
 
+// Database-backed tests live in src/integrationTest and need Docker (Testcontainers).
+// `./gradlew test` stays fast and database-free; `./gradlew check` runs both suites.
+testing {
+    suites {
+        integrationTest(JvmTestSuite) {
+            dependencies {
+                implementation project()
+            }
+            targets {
+                all {
+                    testTask.configure {
+                        shouldRunAfter(test)
+                        finalizedBy tasks.jacocoTestReport
+                    }
+                }
+            }
+        }
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom implementation
+    integrationTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
+tasks.named('check') {
+    dependsOn testing.suites.integrationTest
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -50,8 +79,13 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.mapstruct:mapstruct-processor:1.6.2'
 
-
-
+    // Integration test dependencies (versions come from the Spring Boot BOM)
+    integrationTestImplementation 'org.springframework.boot:spring-boot-starter-test'
+    integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    integrationTestImplementation 'org.testcontainers:postgresql'
+    integrationTestImplementation 'org.testcontainers:junit-jupiter'
+    integrationTestCompileOnly 'org.projectlombok:lombok'
+    integrationTestAnnotationProcessor 'org.projectlombok:lombok'
 }
 
 tasks.named('test') {
@@ -61,6 +95,9 @@ tasks.named('test') {
 
 tasks.jacocoTestReport {
     dependsOn tasks.test // Ensure tests run before generating the report
+
+    // Merge coverage from every test suite that has run (test.exec, integrationTest.exec).
+    executionData fileTree(layout.buildDirectory.dir('jacoco')) { include '*.exec' }
 
     reports {
         html.required.set(true)
