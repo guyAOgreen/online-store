@@ -12,9 +12,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Upgrade path: stop at an earlier changeset, add representative rows as a production database would hold, then apply
- * the remaining migrations and check the rows survived. Today no changesets follow {@code 2-data}, so
- * {@link LiquibaseRunner#migrateToLatest()} applies nothing; later issues (#3 sequences, #7 products) add their own
- * upgrade tests on this harness.
+ * the remaining migrations and check the rows survived. The generic check here is that rows and the foreign key are
+ * preserved; feature-specific upgrade behaviour (such as the #3 sequence repair in
+ * {@link SequenceRepairUpgradeIntegrationTest}) gets its own test on this harness.
  */
 class SchemaUpgradeIntegrationTest extends AbstractIntegrationTest {
 
@@ -72,7 +72,7 @@ class SchemaUpgradeIntegrationTest extends AbstractIntegrationTest {
             db.liquibase().migrateTo("1-schema");
 
             assertThat(count(db, "customer")).isZero();
-            assertThat(db.liquibase().unrunChangeSetIds()).containsExactly("2-data");
+            assertThat(db.liquibase().unrunChangeSetIds()).containsExactly("2-data", "3-sequences");
         }
     }
 
