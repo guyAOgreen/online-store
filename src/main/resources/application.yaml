@@ -3,6 +3,10 @@ spring:
     url: jdbc:postgresql://localhost:5433/store
     username: admin
     password: admin
+  jackson:
+    deserialization:
+      # Request DTOs list exactly the accepted fields; anything else (a client-supplied id, nested orders) is a 400.
+      fail-on-unknown-properties: true
   jpa:
     hibernate:
       ddl-auto: validate

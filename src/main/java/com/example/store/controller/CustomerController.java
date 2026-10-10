@@ -4,6 +4,8 @@ import com.example.store.dto.CustomerCreateRequest;
 import com.example.store.dto.CustomerDTO;
 import com.example.store.service.CustomerService;
 
+import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
@@ -30,7 +32,7 @@ public class CustomerController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CustomerDTO createCustomer(@RequestBody CustomerCreateRequest request) {
+    public CustomerDTO createCustomer(@Valid @RequestBody CustomerCreateRequest request) {
         return customerService.create(request);
     }
 }
