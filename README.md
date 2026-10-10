@@ -34,6 +34,20 @@ You should be able to run the service using
 
 The application uses Liquibase to migrate the schema. Some sample data is provided. You can create more data by reading the documentation in utils/README.md
 
+# Continuous integration
+Every pull request targeting `master`, and every push to `master`, runs the GitHub Actions workflow in `.github/workflows/ci.yml`.
+It uses Java 17 and the committed Gradle wrapper to compile the code, check formatting with Spotless, run the tests, generate the JaCoCo coverage report and package the executable jar.
+Test results, the coverage report and the jar are uploaded as workflow artifacts.
+
+The same gate can be run locally with:
+```shell
+./gradlew clean check bootJar
+```
+
+Gradle itself needs a JDK to start: install any JDK that Gradle 8.11 can run on (Java 17 to 23 are good choices) before running the wrapper.
+The build then declares a Java 17 toolchain. If JDK 17 is not the installed JDK, the Foojay toolchain resolver downloads it automatically for compiling and testing.
+The tests use mocked repositories, so no database is required to run them.
+
 # Data model
 An order has an ID, a description, and is associated with the customer which made the order.
 A customer has an ID, a name, and 0 or more orders.
