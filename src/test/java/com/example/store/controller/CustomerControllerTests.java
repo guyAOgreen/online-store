@@ -1,27 +1,28 @@
 package com.example.store.controller;
 
-import com.example.store.entity.Customer;
-import com.example.store.mapper.CustomerMapper;
-import com.example.store.repository.CustomerRepository;
+import com.example.store.dto.CustomerCreateRequest;
+import com.example.store.dto.CustomerDTO;
+import com.example.store.service.CustomerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CustomerController.class)
-@ComponentScan(basePackageClasses = CustomerMapper.class)
 class CustomerControllerTests {
 
     @Autowired
@@ -31,35 +32,37 @@ class CustomerControllerTests {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private CustomerRepository customerRepository;
+    private CustomerService customerService;
 
-    private Customer customer;
+    private CustomerDTO customer;
 
     @BeforeEach
     void setUp() {
-        customer = new Customer();
-        customer.setName("John Doe");
+        customer = new CustomerDTO();
         customer.setId(1L);
+        customer.setName("John Doe");
+        customer.setOrders(List.of());
     }
 
     @Test
-    void testCreateCustomer() throws Exception {
-        when(customerRepository.save(customer)).thenReturn(customer);
+    void createReturns201WithTheCreatedCustomer() throws Exception {
+        when(customerService.create(new CustomerCreateRequest("John Doe"))).thenReturn(customer);
 
         mockMvc.perform(post("/customer")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(customer)))
+                        .content(objectMapper.writeValueAsString(Map.of("name", "John Doe"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("John Doe"));
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("John Doe"))
+                .andExpect(jsonPath("$.orders").isEmpty());
     }
 
     @Test
-    void testGetAllCustomers() throws Exception {
-        when(customerRepository.findAll()).thenReturn(List.of(customer));
+    void getAllReturnsEveryCustomer() throws Exception {
+        when(customerService.findAll()).thenReturn(List.of(customer));
 
         mockMvc.perform(get("/customer"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$..name").value("John Doe"));
-        ;
+                .andExpect(jsonPath("$[0].name").value("John Doe"));
     }
 }
