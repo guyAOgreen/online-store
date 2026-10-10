@@ -36,8 +36,8 @@ The application uses Liquibase to migrate the schema. Some sample data is provid
 
 # Continuous integration
 Every pull request targeting `master`, and every push to `master`, runs the GitHub Actions workflow in `.github/workflows/ci.yml`.
-It uses Java 17 and the committed Gradle wrapper to compile the code, check formatting with Spotless, run the tests, generate the JaCoCo coverage report and package the executable jar.
-Test results, the coverage report and the jar are uploaded as workflow artifacts.
+It uses Java 17 and the committed Gradle wrapper to compile the code, check formatting with Spotless, run the unit and integration tests, generate the JaCoCo coverage report and package the executable jar.
+Test results for both suites, the coverage report and the jar are uploaded as workflow artifacts.
 
 The same gate can be run locally with:
 ```shell
@@ -46,7 +46,12 @@ The same gate can be run locally with:
 
 Gradle itself needs a JDK to start: install any JDK that Gradle 8.11 can run on (Java 17 to 23 are good choices) before running the wrapper.
 The build then declares a Java 17 toolchain. If JDK 17 is not the installed JDK, the Foojay toolchain resolver downloads it automatically for compiling and testing.
-The tests use mocked repositories, so no database is required to run them.
+
+There are two test suites:
+* `./gradlew test` runs the unit tests in `src/test`. They use mocked repositories and need no database.
+* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes.
+
+`./gradlew check` runs both.
 
 # Data model
 An order has an ID, a description, and is associated with the customer which made the order.
