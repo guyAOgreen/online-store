@@ -10,6 +10,10 @@ plugins {
 group = 'com.example'
 version = '1.0.0-SNAPSHOT'
 
+// Spring Boot 3.4.2 manages Testcontainers 1.20.4, whose Docker client is rejected by
+// Docker Engine 29+ (minimum API version 1.44). 1.21.4 is the last 1.x and supports it.
+ext['testcontainers.version'] = '1.21.4'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
