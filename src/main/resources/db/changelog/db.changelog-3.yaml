@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 3-sequences
+      author: developer@securitease.com
+      comment: Advance the customer and order ID sequences past the seeded rows (never backwards). See sequences.sql for the write-coordination assumption.
+      changes:
+        - sqlFile:
+            path: db/changelog/sequences.sql
