@@ -48,7 +48,7 @@ Gradle itself needs a JDK to start: install any JDK that Gradle 8.11 can run on 
 The build then declares a Java 17 toolchain. If JDK 17 is not the installed JDK, the Foojay toolchain resolver downloads it automatically for compiling and testing.
 
 There are two test suites:
-* `./gradlew test` runs the unit tests in `src/test`. They use mocked repositories and need no database.
+* `./gradlew test` runs the unit tests in `src/test`. Controller tests mock the services and service tests mock the repositories, so they need no database.
 * `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes.
 
 `./gradlew check` runs both.
