@@ -171,6 +171,18 @@ class OrderControllerTests {
     }
 
     @Test
+    void fractionalCustomerIdIs400RatherThanTruncatedToAnotherCustomer() throws Exception {
+        mockMvc.perform(post("/order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\": \"x\", \"customer\": {\"id\": 7.9}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Invalid value for field 'customer.id'"))
+                .andExpect(jsonPath("$.errors[0].field").value("customer.id"))
+                .andExpect(jsonPath("$.errors[0].message").value("invalid value"));
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
     void suppliedOrderIdIs400AsAnUnknownField() throws Exception {
         mockMvc.perform(post("/order")
                         .contentType(MediaType.APPLICATION_JSON)

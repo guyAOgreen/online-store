@@ -198,6 +198,18 @@ class CustomerControllerTests {
     }
 
     @Test
+    void duplicateJsonKeyIs400NotA500() throws Exception {
+        mockMvc.perform(post("/customer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"a\", \"name\": \"b\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Malformed or missing request body"))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
     void unsupportedMediaTypeIs415AsProblemJson() throws Exception {
         mockMvc.perform(post("/customer").contentType(MediaType.TEXT_PLAIN).content("name=John"))
                 .andExpect(status().isUnsupportedMediaType())
