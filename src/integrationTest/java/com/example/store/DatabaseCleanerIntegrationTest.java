@@ -1,8 +1,5 @@
 package com.example.store;
 
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.metamodel.EntityType;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -17,9 +14,6 @@ class DatabaseCleanerIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private DatabaseCleaner databaseCleaner;
-
-    @Autowired
-    private EntityManagerFactory entityManagerFactory;
 
     @Test
     void deletesRowsInsertedAboveTheSeededBaseline() {
@@ -42,16 +36,17 @@ class DatabaseCleanerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void cleansEveryEntityTable() {
-        // Guards against adding an entity (e.g. products) without teaching the cleaner about it.
-        List<String> entityTables = entityManagerFactory.getMetamodel().getEntities().stream()
-                .map(EntityType::getName)
-                .map(String::toLowerCase)
-                .toList();
+    void cleansEveryTableInTheSchema() {
+        // Guards against adding a table (an entity or a Liquibase-only join table) without
+        // teaching the cleaner about it.
+        List<String> schemaTables = jdbcTemplate.queryForList(
+                "SELECT table_name FROM information_schema.tables"
+                        + " WHERE table_schema = 'public' AND table_name NOT LIKE 'databasechangelog%'",
+                String.class);
 
         assertThat(databaseCleaner.cleanedTables())
                 .map(table -> table.replace("\"", ""))
-                .containsExactlyInAnyOrderElementsOf(entityTables);
+                .containsExactlyInAnyOrderElementsOf(schemaTables);
     }
 
     private long count(String table) {
