@@ -28,6 +28,15 @@ public class OrderService {
         return orderMapper.ordersToOrderDTOs(orderRepository.findAll());
     }
 
+    /** Looks up one order with its customer; the mapping happens inside the transaction. */
+    @Transactional(readOnly = true)
+    public OrderDTO findById(Long id) {
+        return orderRepository
+                .findWithCustomerById(id)
+                .map(orderMapper::orderToOrderDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", id));
+    }
+
     /**
      * Creates an order for an existing customer. The customer is loaded first so a dangling reference becomes a client
      * error before anything is written; the foreign key remains the final check. This is the transaction later product
