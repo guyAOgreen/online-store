@@ -60,6 +60,11 @@ public abstract class AbstractIntegrationTest {
         return hibernateStatistics().getPrepareStatementCount();
     }
 
+    /** Number of instances of {@code entity} Hibernate has loaded from the database since the start of the test. */
+    protected long entityLoadCount(Class<?> entity) {
+        return hibernateStatistics().getEntityStatistics(entity.getName()).getLoadCount();
+    }
+
     private Statistics hibernateStatistics() {
         return entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     }
