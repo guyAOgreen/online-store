@@ -58,6 +58,14 @@ class CreateValidationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void nameContainingNulIs400AndInsertsNoRow() throws Exception {
+        JsonNode problem = postExpecting("/customer", Map.of("name", "Nul\u0000Byte"), 400);
+
+        assertThat(problem.get("errors").get(0).get("field").asText()).isEqualTo("name");
+        assertThat(count("customer")).isEqualTo(SEEDED_CUSTOMERS);
+    }
+
+    @Test
     void nameOfExactly255IsStored() throws Exception {
         String maxLength = "y".repeat(255);
 

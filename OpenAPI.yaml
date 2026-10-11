@@ -200,7 +200,8 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Must contain at least one non-whitespace character
+          pattern: '^[^\u0000]*$'
+          description: Must contain at least one non-whitespace character and no NUL characters
     OrderCreateRequest:
       title: OrderCreateRequest
       type: object
@@ -213,7 +214,8 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Must contain at least one non-whitespace character
+          pattern: '^[^\u0000]*$'
+          description: Must contain at least one non-whitespace character and no NUL characters
         customer:
           type: object
           additionalProperties: false

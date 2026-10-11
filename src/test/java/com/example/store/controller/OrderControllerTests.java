@@ -108,6 +108,17 @@ class OrderControllerTests {
     }
 
     @Test
+    void descriptionContainingNulIs400() throws Exception {
+        mockMvc.perform(post("/order")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\": \"Nul\\u0000Byte\", \"customer\": {\"id\": 1}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("description"));
+        verifyNoInteractions(orderService);
+    }
+
+    @Test
     void descriptionLongerThan255Is400() throws Exception {
         String tooLong = "x".repeat(256);
         mockMvc.perform(post("/order")

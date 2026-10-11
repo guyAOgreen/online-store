@@ -107,6 +107,17 @@ class CustomerControllerTests {
     }
 
     @Test
+    void nameContainingNulIs400() throws Exception {
+        mockMvc.perform(post("/customer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Nul\\u0000Byte\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("name"));
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
     void nameLongerThan255Is400() throws Exception {
         String tooLong = "x".repeat(256);
         mockMvc.perform(post("/customer")
