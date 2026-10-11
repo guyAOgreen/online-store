@@ -121,6 +121,15 @@ class CustomerSearchIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void nulCharacterMatchesNothingRatherThanFailing() throws Exception {
+        assertThat(getList(get(URI.create("/customer?q=%00")))).isEmpty();
+        assertThat(search("ann\u0000")).isEmpty();
+        assertThat(sqlStatementCount())
+                .as("a word no name can contain is answered without a round trip")
+                .isZero();
+    }
+
+    @Test
     void matchedCustomerIsMappedExactlyAsInTheFullListing() throws Exception {
         CustomerDTO fromListing = getList(get("/customer")).stream()
                 .filter(customer -> customer.getId() == 6L)

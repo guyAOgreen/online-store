@@ -55,6 +55,15 @@ public final class CustomerSpecifications {
         return pattern.append('%').toString();
     }
 
+    /**
+     * Whether {@code words} can match any stored name. A word containing NUL cannot: PostgreSQL cannot hold NUL in a
+     * text value (#4 rejects it on create for the same reason), and binding one as a parameter makes the statement
+     * fail, so the caller answers with the empty result instead of asking the database.
+     */
+    public static boolean canMatch(List<String> words) {
+        return words.stream().noneMatch(word -> word.indexOf('\0') >= 0);
+    }
+
     /** Customers whose name contains every one of {@code words}; see the class comment for the exact semantics. */
     public static Specification<Customer> nameContainsEachOf(List<String> words) {
         if (words.isEmpty()) {

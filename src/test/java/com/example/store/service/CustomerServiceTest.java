@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -94,6 +95,12 @@ class CustomerServiceTest {
 
         assertThat(found).extracting(CustomerDTO::getName).containsExactly("First");
         verify(customerRepository, never()).findAll(ArgumentMatchers.<Specification<Customer>>any());
+    }
+
+    @Test
+    void queryContainingNulIsEmptyWithoutAskingTheDatabase() {
+        assertThat(customerService.find("ann\u0000")).isEmpty();
+        verifyNoInteractions(customerRepository);
     }
 
     @Test

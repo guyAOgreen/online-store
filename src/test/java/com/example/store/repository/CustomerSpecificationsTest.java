@@ -62,6 +62,12 @@ class CustomerSpecificationsTest {
     }
 
     @Test
+    void wordContainingNulCannotMatchAnyName() {
+        assertThat(CustomerSpecifications.canMatch(List.of("ann", "a\u0000b"))).isFalse();
+        assertThat(CustomerSpecifications.canMatch(List.of("ann", "o'b"))).isTrue();
+    }
+
+    @Test
     void specificationNeedsAtLeastOneWord() {
         assertThatIllegalArgumentException().isThrownBy(() -> CustomerSpecifications.nameContainsEachOf(List.of()));
     }

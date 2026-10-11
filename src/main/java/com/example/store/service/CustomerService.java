@@ -28,14 +28,18 @@ public class CustomerService {
 
     /**
      * Customers whose name contains every word of {@code query} (see {@link CustomerSpecifications}). A {@code null} or
-     * blank query is not a search and returns the full listing. The filter runs in the database; the DTOs are mapped
-     * inside the transaction so the nested orders load in the same session, as in {@link #findAll()}.
+     * blank query is not a search and returns the full listing; a query no stored name can contain (one with a NUL) is
+     * answered with the empty list without a round trip. The filter runs in the database; the DTOs are mapped inside
+     * the transaction so the nested orders load in the same session, as in {@link #findAll()}.
      */
     @Transactional(readOnly = true)
     public List<CustomerDTO> find(String query) {
         List<String> words = CustomerSpecifications.words(query);
         if (words.isEmpty()) {
             return findAll();
+        }
+        if (!CustomerSpecifications.canMatch(words)) {
+            return List.of();
         }
         return customerMapper.customersToCustomerDTOs(
                 customerRepository.findAll(CustomerSpecifications.nameContainsEachOf(words)));
