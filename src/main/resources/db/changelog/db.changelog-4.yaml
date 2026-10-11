@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 4-products
+      author: developer@securitease.com
+      comment: Add the product table and the order_product join table. Additive; existing orders get no associations (see products.sql for the legacy-order policy).
+      changes:
+        - sqlFile:
+            path: db/changelog/products.sql

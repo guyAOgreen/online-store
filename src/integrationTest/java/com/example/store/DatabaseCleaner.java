@@ -22,7 +22,7 @@ import java.util.List;
 public class DatabaseCleaner {
 
     /** Children first. Add new tables here when adding entities or join tables. */
-    private static final List<String> TABLES = List.of("\"order\"", "customer");
+    private static final List<String> TABLES = List.of("order_product", "\"order\"", "product", "customer");
 
     private static final String BASELINE_SCHEMA = "test_baseline";
 
