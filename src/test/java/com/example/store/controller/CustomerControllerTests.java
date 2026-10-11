@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,12 +61,43 @@ class CustomerControllerTests {
     }
 
     @Test
-    void getAllReturnsEveryCustomer() throws Exception {
-        when(customerService.findAll()).thenReturn(List.of(customer));
+    void getWithoutAQueryAsksTheServiceForEveryCustomer() throws Exception {
+        when(customerService.find(null)).thenReturn(List.of(customer));
 
         mockMvc.perform(get("/customer"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].name").value("John Doe"))
+                .andExpect(jsonPath("$[0].orders").isEmpty());
+    }
+
+    @Test
+    void queryParameterReachesTheServiceUntouched() throws Exception {
+        when(customerService.find(" Ann ")).thenReturn(List.of(customer));
+
+        mockMvc.perform(get("/customer").param("q", " Ann "))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("John Doe"));
+        verify(customerService).find(" Ann ");
+    }
+
+    @Test
+    void emptyQueryParameterReachesTheServiceAsAnEmptyString() throws Exception {
+        when(customerService.find("")).thenReturn(List.of(customer));
+
+        mockMvc.perform(get("/customer?q=")).andExpect(status().isOk());
+        verify(customerService).find("");
+    }
+
+    @Test
+    void noMatchesIsAnEmptyJsonArray() throws Exception {
+        when(customerService.find("zzz")).thenReturn(List.of());
+
+        mockMvc.perform(get("/customer").param("q", "zzz"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("[]"));
     }
 
     @Test
