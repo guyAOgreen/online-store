@@ -29,7 +29,9 @@ class MigrationIntegrationTest extends AbstractIntegrationTest {
         List<Map<String, Object>> applied =
                 jdbcTemplate.queryForList("SELECT id, exectype FROM databasechangelog ORDER BY orderexecuted");
 
-        assertThat(applied).extracting(row -> row.get("id")).containsExactly("1-schema", "2-data", "3-sequences");
+        assertThat(applied)
+                .extracting(row -> row.get("id"))
+                .containsExactly("1-schema", "2-data", "3-sequences", "4-products");
         assertThat(applied).extracting(row -> row.get("exectype")).containsOnly("EXECUTED");
     }
 
@@ -38,7 +40,7 @@ class MigrationIntegrationTest extends AbstractIntegrationTest {
         try (LiquibaseRunner liquibase =
                 LiquibaseRunner.open(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
             assertThat(liquibase.unrunChangeSetIds()).isEmpty();
-            assertThat(liquibase.allChangeSetIds()).containsExactly("1-schema", "2-data", "3-sequences");
+            assertThat(liquibase.allChangeSetIds()).containsExactly("1-schema", "2-data", "3-sequences", "4-products");
         }
     }
 }

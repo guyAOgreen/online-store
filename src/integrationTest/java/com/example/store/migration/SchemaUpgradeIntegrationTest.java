@@ -72,7 +72,7 @@ class SchemaUpgradeIntegrationTest extends AbstractIntegrationTest {
             db.liquibase().migrateTo("1-schema");
 
             assertThat(count(db, "customer")).isZero();
-            assertThat(db.liquibase().unrunChangeSetIds()).containsExactly("2-data", "3-sequences");
+            assertThat(db.liquibase().unrunChangeSetIds()).containsExactly("2-data", "3-sequences", "4-products");
         }
     }
 
