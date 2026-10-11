@@ -1,11 +1,13 @@
 package com.example.store.controller;
 
 import com.example.store.service.ReferencedEntityNotFoundException;
+import com.example.store.service.ResourceNotFoundException;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.Comparator;
@@ -72,6 +75,27 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             body.setDetail(MALFORMED_BODY);
         }
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    /**
+     * A path variable or request parameter could not be converted, for example {@code GET /order/abc}. The base class
+     * already answers 400; this names the parameter in the same shape as a body field so the client learns what to fix.
+     */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        String name = ex instanceof MethodArgumentTypeMismatchException argument
+                ? argument.getName()
+                : Objects.requireNonNullElse(ex.getPropertyName(), "value");
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, "Invalid value for '" + name + "'");
+        body.setProperty(ERRORS, List.of(fieldError(name, "invalid value")));
+        return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    /** The resource named in the URL does not exist. */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     /** The body was well formed but named a row that does not exist. 404 stays reserved for the resource in the URL. */

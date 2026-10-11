@@ -98,4 +98,29 @@ class OrderServiceTest {
         assertThat(all.get(0).getDescription()).isEqualTo("Compiler");
         assertThat(all.get(0).getCustomer().getName()).isEqualTo("Grace Hopper");
     }
+
+    @Test
+    void findByIdMapsTheOrderWithItsCustomer() {
+        Order order = new Order();
+        order.setId(42L);
+        order.setDescription("Compiler");
+        order.setCustomer(customer);
+        when(orderRepository.findWithCustomerById(42L)).thenReturn(Optional.of(order));
+
+        OrderDTO found = orderService.findById(42L);
+
+        assertThat(found.getId()).isEqualTo(42L);
+        assertThat(found.getDescription()).isEqualTo("Compiler");
+        assertThat(found.getCustomer().getId()).isEqualTo(7L);
+        assertThat(found.getCustomer().getName()).isEqualTo("Grace Hopper");
+    }
+
+    @Test
+    void findByIdThrowsWhenTheOrderDoesNotExist() {
+        when(orderRepository.findWithCustomerById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.findById(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Order 999 does not exist");
+    }
 }
