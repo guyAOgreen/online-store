@@ -1,17 +1,20 @@
 package com.example.store.controller;
 
+import com.example.store.service.ReferencedEntityNotFoundException;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -69,6 +72,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             body.setDetail(MALFORMED_BODY);
         }
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    /** The body was well formed but named a row that does not exist. 404 stays reserved for the resource in the URL. */
+    @ExceptionHandler(ReferencedEntityNotFoundException.class)
+    ProblemDetail handleReferencedEntityNotFound(ReferencedEntityNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     private static Map<String, String> fieldError(String field, String message) {
