@@ -3,6 +3,15 @@ spring:
     url: jdbc:postgresql://localhost:5433/store
     username: admin
     password: admin
+  jackson:
+    deserialization:
+      # Request DTOs list exactly the accepted fields; anything else (a client-supplied id, nested orders) is a 400.
+      fail-on-unknown-properties: true
+      # A fractional ID (7.9) must not be truncated onto a different row; it is an invalid value.
+      accept-float-as-int: false
+    parser:
+      # A repeated key is a malformed body (400); without this Jackson reports it as a type definition error (500).
+      strict-duplicate-detection: true
   jpa:
     hibernate:
       ddl-auto: validate
