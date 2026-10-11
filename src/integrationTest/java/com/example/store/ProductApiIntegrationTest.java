@@ -79,6 +79,19 @@ class ProductApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void listIsInProductIdOrderWhateverOrdersTheProductsAreIn() throws Exception {
+        long first = insertProduct("First, in a later order");
+        long second = insertProduct("Second, in an earlier order");
+        long third = insertProduct("Third, in no order");
+        associate(5, first);
+        associate(2, second);
+
+        List<ProductDTO> products = getList("/products");
+
+        assertThat(products).extracting(ProductDTO::getId).containsExactly(first, second, third);
+    }
+
+    @Test
     void listLoadsEveryProductAndItsOrdersInOneStatement() throws Exception {
         for (int i = 0; i < 25; i++) {
             long product = insertProduct("Product " + i);

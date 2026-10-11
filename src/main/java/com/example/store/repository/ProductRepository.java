@@ -15,9 +15,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
      * Every product together with its containing orders in a single statement. Both product responses carry the order
      * IDs, so a lazy {@link Product#getOrders()} would cost one further round trip per batch of products; the entity
      * graph joins them in. The JPQL is spelled out because Spring Data would otherwise read the {@code Or} inside
-     * {@code Orders} as a predicate.
+     * {@code Orders} as a predicate, and it orders by the product's own ID for the reason given on
+     * {@link OrderRepository#findAllWithCustomerAndProducts()}.
      */
-    @Query("select p from Product p")
+    @Query("select p from Product p order by p.id")
     @EntityGraph(attributePaths = "orders")
     List<Product> findAllWithOrders();
 

@@ -45,6 +45,9 @@ class OrderProductsIntegrationTest extends AbstractIntegrationTest {
         assertThat(storedProductIdsOf(created.getId())).containsExactly(lamp, chair);
         assertThat(count("\"order\"")).isEqualTo(SEEDED_ORDERS + 1);
         assertThat(count("product")).as("no cascade re-inserts the products").isEqualTo(2);
+        assertThat(sqlStatementCount())
+                .as("customer lookup, product lookup, order insert, one join row per product")
+                .isEqualTo(5);
     }
 
     @Test
@@ -129,6 +132,9 @@ class OrderProductsIntegrationTest extends AbstractIntegrationTest {
         associate(1, lamp);
         associate(1, chair);
         associate(2, lamp);
+        // An order deep in the list gets the lowest product ID: a fetch join ordered only by the collection's
+        // @OrderBy would move it to the front.
+        associate(5_000, lamp);
 
         String json = mockMvc.perform(get("/order"))
                 .andExpect(status().isOk())
@@ -138,7 +144,14 @@ class OrderProductsIntegrationTest extends AbstractIntegrationTest {
         List<OrderDTO> orders = objectMapper.readValue(json, new TypeReference<>() {});
 
         assertThat(orders).as("no duplicated root records from the join").hasSize((int) SEEDED_ORDERS);
-        assertThat(orders).extracting(OrderDTO::getId).doesNotHaveDuplicates();
+        assertThat(orders)
+                .extracting(OrderDTO::getId)
+                .as("orders are listed by their own ID, not by their products'")
+                .isSorted()
+                .doesNotHaveDuplicates();
+        assertThat(byId(orders, 5_000).getProducts())
+                .extracting(OrderProductDTO::getId)
+                .containsExactly(lamp);
         assertThat(byId(orders, 1).getProducts())
                 .extracting(OrderProductDTO::getId)
                 .containsExactly(lamp, chair);
