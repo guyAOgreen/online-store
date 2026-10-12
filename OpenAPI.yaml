@@ -74,10 +74,10 @@ paths:
                 - id: 4
                   name: Dianne Lemke
                   orders:
-                    - id: 1
-                      description: Handcrafted Soft Chair
-                    - id: 117
-                      description: Rustic Granite Shoes
+                    - id: 5
+                      description: Recycled Wooden Shoes
+                    - id: 123
+                      description: Incredible Concrete Salad
     post:
       operationId: createCustomer
       tags: [customers]
@@ -185,8 +185,8 @@ paths:
                 id: 1
                 description: Handcrafted Soft Chair
                 customer:
-                  id: 4
-                  name: Dianne Lemke
+                  id: 6
+                  name: Vicki Kutch
                 products: []
         '400':
           $ref: '#/components/responses/InvalidId'

@@ -63,6 +63,7 @@ The commands in this file are written for a POSIX shell. Everything works on Win
     postgres -c wal_level=logical
   ```
 * **curl.** In PowerShell `curl` is an alias for `Invoke-WebRequest`; write `curl.exe`, which Windows 10 and 11 ship. PowerShell 5.1 also strips the double quotes from a JSON body passed as an argument, so a request body is best read from a file: `curl.exe -H "Content-Type: application/json" -d "@body.json" localhost:8080/customer`. `Invoke-RestMethod -Method Post -ContentType application/json -Body '{"name":"Ada Lovelace"}' localhost:8080/customer` is the native equivalent.
+* **Path length.** Cloning into a deeply nested directory can fail with `Filename too long`, because Git for Windows observes the 260-character path limit by default. Clone somewhere shorter, or run `git config --global core.longpaths true` first.
 * **Shell scripts.** `.github/scripts/smoke-test.sh` is a bash script; run it from Git Bash (`bash .github/scripts/smoke-test.sh <image>`), which Git for Windows installs. `docker compose` and `docker build` are the same on every platform.
 * **Alternatively**, install PostgreSQL 16 directly instead of in Docker; the application only needs a `store` database reachable on `localhost:5433` with the credentials above. Docker is still required for the integration tests.
 
@@ -157,7 +158,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 
 `/products` is plural because the assignment names it so; `/order` and `/customer` keep their original paths.
 
-**Responses.** The data model is circular, so each representation truncates the other side: a customer's orders carry only ID and description, an order's customer only ID and name, an order's products only ID and description, and a product's orders are IDs alone. Every list, and every nested list, is in ascending ID order. Lists are not paginated; `GET /order` returns all 10,000 seeded orders (about 2 MB, or 240 KB with `Accept-Encoding: gzip`, which the server honours for JSON).
+**Responses.** The data model is circular, so each representation truncates the other side: a customer's orders carry only ID and description, an order's customer only ID and name, an order's products only ID and description, and a product's orders are IDs alone. Every list, and every nested list, is in ascending ID order. Lists are not paginated; `GET /order` returns all 10,000 seeded orders (about 1.1 MB on the seed alone, or 113 KB with `Accept-Encoding: gzip`, which the server honours for JSON).
 
 **Errors.** Every client error is an RFC 9457 problem document, `application/problem+json`, with `type`, `title`, `status`, `detail` and `instance`, plus an `errors` array of `{field, message}` whenever a field can be named. One rule decides the status:
 
@@ -172,7 +173,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 The full detail of each decision, and the alternatives, is in SOLUTION.md: validation and the error contract under #4, the lookup under #5, search under #6, the product model and the legacy-order policy under #7, the product endpoints and duplicate handling under #8, the fetch strategy and measurements under #9, and this documentation under #10.
 
 # Worked examples
-Each assignment task below is demonstrated against a fresh database started as in the quick start, in this order, so the IDs match. Responses are shown as the server returns them, reformatted only for line breaks. `OpenApiContractIntegrationTest` runs the same sequence on every build.
+Each assignment task below is demonstrated against a fresh database started as in the quick start, in this order, so the IDs match. Responses are shown as the server returns them, pretty-printed; the long order lists in the search results are elided. `OpenApiContractIntegrationTest` runs the same sequence on every build.
 
 ## Task 4 first: products, because orders now need them
 Create two products:
@@ -181,7 +182,16 @@ curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '
 curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"description": "Chair"}'
 ```
 ```json
-<<OUT:post-products>>
+{
+  "id": 1,
+  "description": "Lamp",
+  "orders": []
+}
+{
+  "id": 2,
+  "description": "Chair",
+  "orders": []
+}
 ```
 Create an order containing both for customer 1. The response carries the products in ID order whatever order the body listed them:
 ```shell
@@ -189,7 +199,24 @@ curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
   -d '{"description": "Reading lamp and chair", "customer": {"id": 1}, "products": [{"id": 2}, {"id": 1}]}'
 ```
 ```json
-<<OUT:post-order>>
+{
+  "id": 10001,
+  "description": "Reading lamp and chair",
+  "customer": {
+    "id": 1,
+    "name": "Muriel Donnelly"
+  },
+  "products": [
+    {
+      "id": 1,
+      "description": "Lamp"
+    },
+    {
+      "id": 2,
+      "description": "Chair"
+    }
+  ]
+}
 ```
 Products report the orders that contain them, as IDs:
 ```shell
@@ -197,14 +224,44 @@ curl -s localhost:8080/products
 curl -s localhost:8080/products/1
 ```
 ```json
-<<OUT:get-products>>
+[
+  {
+    "id": 1,
+    "description": "Lamp",
+    "orders": [
+      10001
+    ]
+  },
+  {
+    "id": 2,
+    "description": "Chair",
+    "orders": [
+      10001
+    ]
+  }
+]
+{
+  "id": 1,
+  "description": "Lamp",
+  "orders": [
+    10001
+  ]
+}
 ```
 An order that predates products has an empty list; it is still a valid order:
 ```shell
 curl -s localhost:8080/order/1
 ```
 ```json
-<<OUT:get-order-legacy>>
+{
+  "id": 1,
+  "description": "Handcrafted Soft Chair",
+  "customer": {
+    "id": 6,
+    "name": "Vicki Kutch"
+  },
+  "products": []
+}
 ```
 The error cases: a missing `products` array (the pre-product request shape), the same product twice, and a product that does not exist. The first two are 400 because the request is wrong in itself; the third is 422 because the request is well formed but the reference dangles. None of them writes anything:
 ```shell
@@ -216,14 +273,58 @@ curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
   -d '{"description": "Unknown", "customer": {"id": 1}, "products": [{"id": 1}, {"id": 7001}, {"id": 7002}]}'
 ```
 ```json
-<<OUT:post-order-errors>>
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid request content.",
+  "instance": "/order",
+  "errors": [
+    {
+      "field": "products",
+      "message": "must not be empty"
+    }
+  ]
+}
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid request content.",
+  "instance": "/order",
+  "errors": [
+    {
+      "field": "products",
+      "message": "must not contain the same product more than once"
+    }
+  ]
+}
+{
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "Products 7001, 7002 do not exist",
+  "instance": "/order"
+}
 ```
 A client-supplied ID is an unknown field, on every create:
 ```shell
 curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"id": 1, "description": "Lamp"}'
 ```
 ```json
-<<OUT:post-product-id>>
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Unknown field 'id'",
+  "instance": "/products",
+  "errors": [
+    {
+      "field": "id",
+      "message": "unknown field"
+    }
+  ]
+}
 ```
 
 ## Task 1: an order by ID
@@ -231,7 +332,13 @@ curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '
 curl -s -i localhost:8080/order/10001
 ```
 ```
-<<OUT:get-order-10001>>
+HTTP/1.1 200 
+vary: accept-encoding
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Mon, 12 Oct 2026 08:55:10 GMT
+
+{"id":10001,"description":"Reading lamp and chair","customer":{"id":1,"name":"Muriel Donnelly"},"products":[{"id":1,"description":"Lamp"},{"id":2,"description":"Chair"}]}
 ```
 A missing order is 404 and a malformed ID is 400, both as problem documents:
 ```shell
@@ -239,7 +346,26 @@ curl -s localhost:8080/order/999999
 curl -s localhost:8080/order/abc
 ```
 ```json
-<<OUT:get-order-errors>>
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Order 999999 does not exist",
+  "instance": "/order/999999"
+}
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid value for 'id'",
+  "instance": "/order/abc",
+  "errors": [
+    {
+      "field": "id",
+      "message": "invalid value"
+    }
+  ]
+}
 ```
 
 ## Task 2: customers by a substring of a word in their name
@@ -247,7 +373,53 @@ curl -s localhost:8080/order/abc
 curl -s 'localhost:8080/customer?q=ann'
 ```
 ```json
-<<OUT:search-ann>>
+[
+  {
+    "id": 2,
+    "name": "Lance Stiedemann Sr.",
+    "orders": [
+      {
+        "id": 17,
+        "description": "Rustic Bronze Salad"
+      },
+      {
+        "id": 113,
+        "description": "Practical Soft Salad"
+      }
+      ... 97 more orders ...
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Dianne Lemke",
+    "orders": [
+      {
+        "id": 5,
+        "description": "Recycled Wooden Shoes"
+      },
+      {
+        "id": 123,
+        "description": "Incredible Concrete Salad"
+      }
+      ... 86 more orders ...
+    ]
+  },
+  {
+    "id": 18,
+    "name": "Angelo Pfannerstill",
+    "orders": [
+      {
+        "id": 19,
+        "description": "Sleek Cotton Towels"
+      },
+      {
+        "id": 30,
+        "description": "Refined Soft Computer"
+      }
+      ... 104 more orders ...
+    ]
+  }
+]
 ```
 Several words must all match, in any order; an unmatched query is an empty list rather than an error:
 ```shell
@@ -255,7 +427,24 @@ curl -s 'localhost:8080/customer?q=glover%20ed'
 curl -s 'localhost:8080/customer?q=zzzz'
 ```
 ```json
-<<OUT:search-multi>>
+[
+  {
+    "id": 100,
+    "name": "Ed Glover",
+    "orders": [
+      {
+        "id": 169,
+        "description": "Oriental Rubber Hat"
+      },
+      {
+        "id": 183,
+        "description": "Bespoke Cotton Shoes"
+      }
+      ... 102 more orders ...
+    ]
+  }
+]
+[]
 ```
 
 ## Task 3: performance of the GET endpoints
@@ -263,7 +452,7 @@ Every GET endpoint issues exactly one SQL statement whatever the dataset holds, 
 ```shell
 ./gradlew latencyBenchmark                # 25 ms each way; -Platency=50 for more
 ```
-It writes `build/reports/latency-benchmark.md`. The figures from the run that decided the design are in SOLUTION.md under #9; in short, the customer listing went from 13 round trips (705 ms at 25 ms latency) to 2 (127 ms), every other read was already at the floor the read-only transaction sets, an index on `"order".customer_id` was added for the search once its effect was shown at a million orders, and gzip cuts the 2 MB order listing to 240 KB on the wire. From the running application the effect is visible as response time alone; the statement counts and plans need the benchmark's instrumentation.
+It writes `build/reports/latency-benchmark.md`. The figures from the run that decided the design are in SOLUTION.md under #9; in short, the customer listing went from 13 round trips (705 ms at 25 ms latency) to 2 (127 ms), every other read was already at the floor the read-only transaction sets, an index on `"order".customer_id` was added for the search once its effect was shown at a million orders, and gzip cuts the benchmark dataset's 2 MB order listing to 240 KB on the wire. From the running application the effect is visible as response time alone; the statement counts and plans need the benchmark's instrumentation.
 
 ## Bonus: CI and the Docker image
 Every pull request runs `./gradlew clean check bootJar`, builds the image and smoke-tests it; a push to `master` publishes it. See [Continuous integration](#continuous-integration) and [Docker image](#docker-image); `docker compose up --build` runs this checkout's image against PostgreSQL in one command.
