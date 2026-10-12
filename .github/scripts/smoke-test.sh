@@ -32,9 +32,11 @@ docker run -d --name "$DB" --network "$NETWORK" \
     -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin -e POSTGRES_DB=store \
     postgres:16.2 postgres -c wal_level=logical > /dev/null
 
-# The image's HEALTHCHECK interval is tuned for production; poll faster here so the check finishes in seconds.
+# The image's HEALTHCHECK interval is tuned for production; poll faster here so the check finishes in seconds. The
+# start period must cover the whole startup, migrations included, on a slow runner: a failed probe inside it does not
+# count towards "unhealthy", while a passing one flips to "healthy" at once. The loop below is the real timeout.
 docker run -d --name "$APP" --network "$NETWORK" -p "$PORT:8080" \
-    --health-interval 2s --health-start-period 5s --health-retries 3 \
+    --health-interval 2s --health-start-period 120s --health-retries 3 \
     -e SPRING_DATASOURCE_URL="jdbc:postgresql://$DB:5432/store" \
     -e SPRING_DATASOURCE_USERNAME=admin -e SPRING_DATASOURCE_PASSWORD=admin \
     "$IMAGE" > /dev/null
