@@ -7,7 +7,7 @@ The Store application keeps track of customers, their orders, and the products t
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
 # Quick start from a clean checkout
-You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles and tests nothing on your machine and needs no registry access, then starts PostgreSQL 16.2 and the application:
+You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles nothing on your machine and needs no login to the private registry the published image lives in (it does pull the public `postgres` and Temurin images and the build's Gradle dependencies), then starts PostgreSQL 16.2 and the application:
 
 ```shell
 git clone https://github.com/guyAOgreen/online-store.git
@@ -34,7 +34,7 @@ curl -s 'localhost:8080/customer?q=muriel'
 `docker compose down -v` stops both containers and drops the database. The [API](#api) table lists every endpoint and the [worked examples](#worked-examples) walk through each assignment task with the real responses, including the error cases. On Windows write `curl.exe` and read JSON bodies from a file; see [Windows and other differences](#windows-and-other-differences).
 
 # Development setup
-To build, test or run the application outside Docker you also need a JDK. The build compiles and tests on **Java 17**, which the Gradle toolchain downloads automatically if it is not installed; the only requirement on the JDK you have is that Gradle 8.11 can start on it, which means **Java 17 to 23**. On a machine whose default JDK is newer, point `JAVA_HOME` at a 17–23 JDK for the wrapper (see [Windows and other differences](#windows-and-other-differences)). The compose file's database is published on `localhost:5433` with the credentials below, so if it is still up from the quick start, skip step 1 (`docker compose up db` starts it alone).
+To build, test or run the application outside Docker you also need a JDK. The build compiles and tests on **Java 17**, which the Gradle toolchain downloads automatically if it is not installed; the only requirement on the JDK you have is that Gradle 8.11 can start on it, which means **Java 17 to 23**. On a machine whose default JDK is newer, point `JAVA_HOME` at a 17–23 JDK for the wrapper (see [Windows and other differences](#windows-and-other-differences)). The compose file's database is published on `localhost:5433` with the credentials below, so it can serve `bootRun` instead of step 1; but the compose application holds port 8080, so stop it first (`docker compose stop app`), or start the database alone with `docker compose up db`.
 
 ```shell
 # 1. PostgreSQL 16.2 on localhost:5433 (note the non-standard port), user and password admin, database store
@@ -154,7 +154,7 @@ The same gate, exactly as the workflow invokes it, runs locally with:
 
 There are two test suites:
 * `./gradlew test` runs the unit tests in `src/test`. Controller tests mock the services and service tests mock the repositories, so they need no database.
-* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes. This suite also holds the API to `OpenAPI.yaml`: every request the suite makes and every response it receives is validated against the document, and `OpenApiContractIntegrationTest` sends one request for every documented response and checks the set reached equals the set documented. That covers the exchanges the suite exercises, not every input the API could receive: a response shape or status code that only an untested input produces is outside what the check can see.
+* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes. This suite also holds the API to `OpenAPI.yaml`: every response the suite receives on a documented path is validated against the document, every request the server accepts must match its documented schema (the deliberately malformed requests are judged by their 4xx response alone), and `OpenApiContractIntegrationTest` sends one request for every documented response and checks the set reached equals the set documented. The actuator paths are outside the document and the check. That covers the exchanges the suite exercises, not every input the API could receive: a response shape or status code that only an untested input produces is outside what the check can see.
 
 `./gradlew check` runs both. Spotless formatting violations fail `check` too; `./gradlew spotlessApply` fixes them.
 
