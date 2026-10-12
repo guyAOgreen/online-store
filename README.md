@@ -1,7 +1,7 @@
 # Store Application
 The Store application keeps track of customers, their orders, and the products those orders contain, in a PostgreSQL database behind a small JSON API.
 
-* [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request the server accepts and every response it exercises against it, so it describes what the running service does.
+* [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request it sends that the server accepts, and every response it receives, against it, so it describes what the running service does for the exchanges the suite exercises.
 * [SOLUTION.md](SOLUTION.md) is the five-minute summary: what was delivered, the decisions most likely to be questioned, the performance evidence, the compatibility changes and the limitations.
 * [docs/design-record.md](docs/design-record.md) is the full design record behind it: one section per GitHub issue with what was chosen, what was considered and why, and the measurements behind the performance work.
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
