@@ -34,10 +34,60 @@ You should be able to run the service using
 
 The application uses Liquibase to migrate the schema. Some sample data is provided. You can create more data by reading the documentation in utils/README.md
 
+# Docker image
+The service is also delivered as a Docker image, built from the `Dockerfile` at the repository root and published to GitHub Container Registry by CI (see below):
+
+| Tag | Meaning |
+|-----|---------|
+| `ghcr.io/guyaogreen/online-store:latest` | the most recent push to `master` |
+| `ghcr.io/guyaogreen/online-store:sha-<short sha>` | the exact commit it was built from |
+| `ghcr.io/guyaogreen/online-store:<version>` | a `v<version>` git tag, for example `v1.0.0` |
+
+The repository is private, so pulling needs `docker login ghcr.io` with a GitHub token that has `read:packages`. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
+```shell
+docker pull ghcr.io/guyaogreen/online-store:latest   # or:
+docker build -t ghcr.io/guyaogreen/online-store:latest .
+```
+
+The image listens on port 8080 and reads its database connection from Spring Boot's standard environment variables; the defaults baked into `application.yaml` point at `localhost:5433`, which inside a container is the container itself, so always set at least the URL:
+
+| Variable | Example |
+|----------|---------|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://db:5432/store` |
+| `SPRING_DATASOURCE_USERNAME` | `admin` |
+| `SPRING_DATASOURCE_PASSWORD` | `admin` |
+| `JDK_JAVA_OPTIONS` | optional JVM flags, for example `-XX:MaxRAMPercentage=75` |
+
+Liquibase runs on startup, exactly as under `bootRun`, so an empty `store` database is enough. The image declares a `HEALTHCHECK` on `GET /actuator/health`, which reports `UP` only once the migrations have run, the web server is accepting requests and the database answers a ping; that is the only actuator endpoint exposed.
+
+The quickest way to run it against PostgreSQL is the compose file, which starts `postgres:16.2` with the credentials above (also published on `localhost:5433` for `bootRun`, so stop the standalone `postgres` container first) and the application on `localhost:8080`:
+```shell
+docker compose up            # pulls the published image
+docker compose up --build    # builds the image from this checkout instead
+docker compose down -v       # stops both and drops the database volume
+```
+
+To run the image next to the standalone `postgres` container from the prerequisites instead, put both on one Docker network so the application can reach it by name:
+```shell
+docker network create store
+docker network connect store postgres
+docker run -d --name store --network store -p 8080:8080 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/store \
+  -e SPRING_DATASOURCE_USERNAME=admin \
+  -e SPRING_DATASOURCE_PASSWORD=admin \
+  ghcr.io/guyaogreen/online-store:latest
+curl localhost:8080/actuator/health
+curl localhost:8080/order/1
+```
+
+`.github/scripts/smoke-test.sh <image>` is the check CI runs before publishing and works locally too: it starts a throwaway PostgreSQL and the image on a private network, waits for the image's own health check, fetches `/order/1` and verifies the seed data came back, then removes both containers.
+
 # Continuous integration
 Every pull request targeting `master`, and every push to `master`, runs the GitHub Actions workflow in `.github/workflows/ci.yml`.
 It uses Java 17 and the committed Gradle wrapper to compile the code, check formatting with Spotless, run the unit and integration tests, generate the JaCoCo coverage report and package the executable jar.
 Test results for both suites, the coverage report and the jar are uploaded as workflow artifacts.
+
+A second job then builds the Docker image and runs the smoke test above against it. On a pull request that is where it stops: no registry login happens, so no credentials are needed and nothing is published. On a push to `master`, or of a `v*` tag, the same build is pushed to `ghcr.io/guyaogreen/online-store` with the tags listed under *Docker image*, using the workflow's own `GITHUB_TOKEN`. Publication is reached only after both the test suites and the smoke test have passed.
 
 The same gate can be run locally with:
 ```shell

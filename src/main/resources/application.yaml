@@ -31,3 +31,11 @@ spring:
         default_batch_fetch_size: 10
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health is on the wire (#11): the container HEALTHCHECK and the CI smoke check probe it. Its DataSource
+        # check means UP also says the database is reachable, and because Liquibase runs before the web server accepts
+        # connections, a 200 means the migrations applied. Component details stay hidden; they describe internals.
+        include: health

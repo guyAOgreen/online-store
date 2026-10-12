@@ -1,0 +1,14 @@
+# Only the sources the builder stage copies matter; everything else would just invalidate the build cache.
+.git
+.github
+.gradle
+.idea
+.superpowers
+.vscode
+build
+utils
+*.md
+compose.yaml
+Dockerfile
+LICENSE
+OpenAPI.yaml
