@@ -48,6 +48,8 @@ testing {
                     testTask.configure {
                         shouldRunAfter(test)
                         finalizedBy tasks.jacocoTestReport
+                        // The latency benchmark reports timings rather than asserting them; see latencyBenchmark.
+                        filter.excludeTestsMatching 'com.example.store.LatencyBenchmarkIntegrationTest'
                     }
                 }
             }
@@ -62,6 +64,20 @@ configurations {
 
 tasks.named('check') {
     dependsOn testing.suites.integrationTest
+}
+
+// Measures every GET endpoint against PostgreSQL behind a Toxiproxy latency toxic (#9) and writes
+// build/reports/latency-benchmark.md. Not part of check: it reports timings, which no CI run should gate on.
+tasks.register('latencyBenchmark', Test) {
+    description = 'Measures the GET endpoints with simulated database latency (-Platency=<ms>, default 25).'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    filter.includeTestsMatching 'com.example.store.LatencyBenchmarkIntegrationTest'
+    systemProperty 'store.benchmark.latency', project.findProperty('latency') ?: '25'
+    outputs.upToDateWhen { false }
+    jacoco.enabled = false
 }
 
 dependencies {
@@ -89,6 +105,7 @@ dependencies {
     integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
     integrationTestImplementation 'org.testcontainers:postgresql'
     integrationTestImplementation 'org.testcontainers:junit-jupiter'
+    integrationTestImplementation 'org.testcontainers:toxiproxy'
     integrationTestCompileOnly 'org.projectlombok:lombok'
     integrationTestAnnotationProcessor 'org.projectlombok:lombok'
 }

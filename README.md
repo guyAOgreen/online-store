@@ -53,6 +53,9 @@ There are two test suites:
 
 `./gradlew check` runs both.
 
+# Performance measurement
+The GET endpoints are measured, not just tested, because the production database sits behind a high-latency link. `./gradlew latencyBenchmark` (Docker required, not part of `check`) runs every GET request against a PostgreSQL container reached through a Toxiproxy latency toxic, on the seed plus a larger product dataset, and writes `build/reports/latency-benchmark.md`: statements prepared, statements and rows as PostgreSQL counted them, query plans, response bytes with and without gzip, median timings with and without the simulated latency, and the number of round trips derived from the difference. `-Platency=<ms>` sets the one-way latency (default 25). The before-and-after figures and the decisions taken on them are in SOLUTION.md under #9. `ReadQueryCountIntegrationTest`, which is part of `check`, holds the statement count of every GET endpoint constant whatever the dataset size.
+
 # Data model
 An order has an ID, a description, and is associated with the customer which made the order.
 A customer has an ID, a name, and 0 or more orders.

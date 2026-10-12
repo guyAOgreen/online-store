@@ -64,6 +64,11 @@ public final class CustomerSpecifications {
         return words.stream().noneMatch(word -> word.indexOf('\0') >= 0);
     }
 
+    /** Every customer: a specification with no predicate, so the listing and the search share one repository method. */
+    public static Specification<Customer> all() {
+        return (root, query, builder) -> null;
+    }
+
     /** Customers whose name contains every one of {@code words}; see the class comment for the exact semantics. */
     public static Specification<Customer> nameContainsEachOf(List<String> words) {
         if (words.isEmpty()) {

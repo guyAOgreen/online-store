@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 5-order-customer-index
+      author: developer@securitease.com
+      comment: Index "order".customer_id for the customer search (#9). Built concurrently, outside a transaction, so order inserts keep flowing; see order_customer_index.sql for the failure and recovery path.
+      runInTransaction: false
+      changes:
+        - sqlFile:
+            path: db/changelog/order_customer_index.sql
