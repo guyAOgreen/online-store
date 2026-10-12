@@ -7,7 +7,7 @@ The Store application keeps track of customers, their orders, and the products t
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
 # Quick start from a clean checkout
-You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles nothing on your machine and needs no login for the published image, which is a private package (it does pull the public `postgres` and Temurin images and the build's Gradle dependencies), then starts PostgreSQL 16.2 and the application:
+You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, so you run exactly the submitted code with nothing compiled on your machine (it does pull the public `postgres` and Temurin images and the build's Gradle dependencies), then starts PostgreSQL 16.2 and the application; without `--build` it pulls the published image instead, which is public (see [Docker image](#docker-image)):
 
 ```shell
 git clone https://github.com/guyAOgreen/online-store.git
@@ -89,7 +89,7 @@ The commands in this file are written for a POSIX shell. Everything works on Win
   ```
 * **curl.** In PowerShell `curl` is an alias for `Invoke-WebRequest`; write `curl.exe`, which Windows 10 and 11 ship. PowerShell 5.1 also strips the double quotes from a JSON body passed as an argument, so a request body is best read from a file: `curl.exe -H "Content-Type: application/json" -d "@body.json" localhost:8080/customer`. `Invoke-RestMethod -Method Post -ContentType application/json -Body '{"name":"Ada Lovelace"}' localhost:8080/customer` is the native equivalent.
 * **Path length.** Cloning into a deeply nested directory can fail with `Filename too long`, because Git for Windows observes the 260-character path limit by default. Clone somewhere shorter, or run `git config --global core.longpaths true` first.
-* **Shell scripts.** `.github/scripts/smoke-test.sh` is a bash script; run it from Git Bash (`bash .github/scripts/smoke-test.sh <image>`), which Git for Windows installs. `docker compose` and `docker build` are the same on every platform.
+* **Shell scripts.** `.github/scripts/smoke-test.sh` is a bash script; run it from Git Bash (`bash .github/scripts/smoke-test.sh <image>`), which Git for Windows installs. `docker compose` and `docker build` are the same on every platform, but a variable set for one command, `IMAGE_TAG=… docker compose up`, is `$env:IMAGE_TAG = '…'; docker compose up` in PowerShell.
 * **Alternatively**, install PostgreSQL 16 directly instead of in Docker; the application only needs a `store` database reachable on `localhost:5433` with the credentials above. Docker is still required for the integration tests.
 
 # Docker image
@@ -101,11 +101,13 @@ The service is also delivered as a Docker image, built from the `Dockerfile` at 
 | `ghcr.io/guyaogreen/online-store:sha-<short sha>` | the exact commit it was built from |
 | `ghcr.io/guyaogreen/online-store:<version>` | a `v<version>` git tag, for example `v1.0.0` |
 
-The repository is public, but the container package has its own visibility and is private, so pulling needs `docker login ghcr.io` with a GitHub token that has `read:packages`. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
+The package is public, so pulling needs no login. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
 ```shell
-docker pull ghcr.io/guyaogreen/online-store:latest   # or:
-docker build -t ghcr.io/guyaogreen/online-store:latest .
+docker pull ghcr.io/guyaogreen/online-store:latest                                # the most recent master build
+docker pull ghcr.io/guyaogreen/online-store:sha-$(git rev-parse --short=7 HEAD)   # the build of the master commit checked out
+docker build -t ghcr.io/guyaogreen/online-store:latest .                          # or build it here
 ```
+The `sha-` tag is how to run the published build of a specific commit: every push to `master` or a `v*` tag publishes one, and the compose file takes it through `IMAGE_TAG` (`IMAGE_TAG=sha-$(git rev-parse --short=7 HEAD) docker compose up`), defaulting to `latest`. The tag uses seven hex characters, which `--short=7` matches whatever `core.abbrev` is set to. A commit that is only on a pull-request branch has no published image, because pull requests build and smoke-test the image without pushing it; `docker compose up --build` is the route for those.
 
 The image listens on port 8080 and reads its database connection from Spring Boot's standard environment variables; the defaults baked into `application.yaml` point at `localhost:5433`, which inside a container is the container itself, so always set at least the URL:
 
