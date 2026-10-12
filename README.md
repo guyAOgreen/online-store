@@ -104,10 +104,10 @@ The service is also delivered as a Docker image, built from the `Dockerfile` at 
 The package is public, so pulling needs no login. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
 ```shell
 docker pull ghcr.io/guyaogreen/online-store:latest                                # the most recent master build
-docker pull ghcr.io/guyaogreen/online-store:sha-$(git rev-parse --short HEAD)     # the build of the commit checked out
+docker pull ghcr.io/guyaogreen/online-store:sha-$(git rev-parse --short=7 HEAD)   # the build of the master commit checked out
 docker build -t ghcr.io/guyaogreen/online-store:latest .                          # or build it here
 ```
-The `sha-` tag is how to run the exact commit under review: every push to `master` publishes one, and the compose file takes it through `IMAGE_TAG` (`IMAGE_TAG=sha-$(git rev-parse --short HEAD) docker compose up`), defaulting to `latest`.
+The `sha-` tag is how to run the published build of a specific commit: every push to `master` or a `v*` tag publishes one, and the compose file takes it through `IMAGE_TAG` (`IMAGE_TAG=sha-$(git rev-parse --short=7 HEAD) docker compose up`), defaulting to `latest`. The tag uses seven hex characters, which `--short=7` matches whatever `core.abbrev` is set to. A commit that is only on a pull-request branch has no published image, because pull requests build and smoke-test the image without pushing it; `docker compose up --build` is the route for those.
 
 The image listens on port 8080 and reads its database connection from Spring Boot's standard environment variables; the defaults baked into `application.yaml` point at `localhost:5433`, which inside a container is the container itself, so always set at least the URL:
 
