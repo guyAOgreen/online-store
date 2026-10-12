@@ -5,14 +5,16 @@
 #
 #   .github/scripts/smoke-test.sh <image reference> [host port, default 18080]
 #
-# Container logs are printed on failure; the containers and network are always removed.
+# Container logs are printed on failure; this run's containers and network are always removed. Names carry the
+# process ID, so concurrent runs (on different host ports) neither collide nor clean each other up.
 set -euo pipefail
 
 IMAGE="${1:?image reference required}"
 PORT="${2:-18080}"
-NETWORK="store-smoke"
-DB="store-smoke-db"
-APP="store-smoke-app"
+RUN_ID="$$"
+NETWORK="store-smoke-$RUN_ID"
+DB="store-smoke-db-$RUN_ID"
+APP="store-smoke-app-$RUN_ID"
 
 cleanup() {
     docker rm -f "$APP" "$DB" > /dev/null 2>&1 || true
@@ -25,12 +27,29 @@ fail() {
     exit 1
 }
 trap cleanup EXIT
-cleanup
 
 docker network create "$NETWORK" > /dev/null
 docker run -d --name "$DB" --network "$NETWORK" \
     -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=admin -e POSTGRES_DB=store \
     postgres:16.2 postgres -c wal_level=logical > /dev/null
+
+# The application's connection pool fails fast, so the database must be accepting connections before it starts.
+# -h localhost forces TCP: during initdb the image runs a temporary server on the Unix socket only, which a plain
+# pg_isready would report as ready.
+echo "Waiting for PostgreSQL to accept connections..."
+ready=false
+for _ in $(seq 1 30); do
+    if docker exec "$DB" pg_isready -h localhost -U admin -d store > /dev/null 2>&1; then
+        ready=true
+        break
+    fi
+    sleep 2
+done
+if [ "$ready" != true ]; then
+    echo "::error::PostgreSQL did not become ready in time"
+    docker logs "$DB" 2>&1 | tail -n 50 || true
+    exit 1
+fi
 
 # The image's HEALTHCHECK interval is tuned for production; poll faster here so the check finishes in seconds. The
 # start period must cover the whole startup, migrations included, on a slow runner: a failed probe inside it does not
