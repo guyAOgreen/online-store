@@ -124,12 +124,12 @@ class ProductMappingIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void lookingUpAnOrderDoesNotLoadItsProducts() {
+    void loadingAnOrderDoesNotLoadItsProducts() {
         long productId = insertProduct("Not loaded");
         associate(1, productId);
 
         transactionTemplate.executeWithoutResult(status -> {
-            Order order = orderRepository.findWithCustomerById(1L).orElseThrow();
+            Order order = orderRepository.findById(1L).orElseThrow();
 
             assertThat(sqlStatementCount()).isEqualTo(1);
             assertThat(Hibernate.isInitialized(order.getProducts())).isFalse();

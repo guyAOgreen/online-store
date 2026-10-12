@@ -2,10 +2,13 @@ package com.example.store;
 
 import com.example.store.dto.CustomerDTO;
 import com.example.store.dto.OrderDTO;
+import com.example.store.dto.OrderProductDTO;
+import com.example.store.dto.ProductDTO;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,11 +38,22 @@ class GeneratedIdIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void createsOrderWithGeneratedIdAfterSeedData() throws Exception {
-        OrderDTO created =
-                create("/order", Map.of("description", "Generated order", "customer", Map.of("id", 1)), OrderDTO.class);
+        ProductDTO product = create("/products", Map.of("description", "Generated product"), ProductDTO.class);
+
+        OrderDTO created = create(
+                "/order",
+                Map.of(
+                        "description",
+                        "Generated order",
+                        "customer",
+                        Map.of("id", 1),
+                        "products",
+                        List.of(Map.of("id", product.getId()))),
+                OrderDTO.class);
 
         assertThat(created.getId()).isGreaterThan(LAST_SEEDED_ORDER_ID);
         assertThat(created.getCustomer().getId()).isEqualTo(1L);
+        assertThat(created.getProducts()).extracting(OrderProductDTO::getId).containsExactly(product.getId());
         assertThat(jdbcTemplate.queryForObject(
                         "SELECT customer_id FROM \"order\" WHERE id = ?", Long.class, created.getId()))
                 .isEqualTo(1L);

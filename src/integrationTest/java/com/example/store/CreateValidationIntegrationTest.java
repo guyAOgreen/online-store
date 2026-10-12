@@ -41,7 +41,17 @@ class CreateValidationIntegrationTest extends AbstractIntegrationTest {
                 jdbcTemplate.queryForMap("SELECT description, customer_id FROM \"order\" WHERE id = 1");
 
         JsonNode problem = postExpecting(
-                "/order", Map.of("id", 1, "description", "Overwritten", "customer", Map.of("id", 2)), 400);
+                "/order",
+                Map.of(
+                        "id",
+                        1,
+                        "description",
+                        "Overwritten",
+                        "customer",
+                        Map.of("id", 2),
+                        "products",
+                        List.of(Map.of("id", insertProduct()))),
+                400);
 
         assertThat(problem.get("errors").get(0).get("field").asText()).isEqualTo("id");
         assertThat(jdbcTemplate.queryForMap("SELECT description, customer_id FROM \"order\" WHERE id = 1"))
@@ -80,8 +90,16 @@ class CreateValidationIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void orderForACustomerThatDoesNotExistIs422AndInsertsNoRow() throws Exception {
-        JsonNode problem =
-                postExpecting("/order", Map.of("description", "Dangling", "customer", Map.of("id", 999_999)), 422);
+        JsonNode problem = postExpecting(
+                "/order",
+                Map.of(
+                        "description",
+                        "Dangling",
+                        "customer",
+                        Map.of("id", 999_999),
+                        "products",
+                        List.of(Map.of("id", insertProduct()))),
+                422);
 
         assertThat(problem.get("detail").asText()).isEqualTo("Customer 999999 does not exist");
         assertThat(problem.has("errors")).isFalse();
@@ -110,6 +128,12 @@ class CreateValidationIntegrationTest extends AbstractIntegrationTest {
                                         : MediaType.APPLICATION_JSON))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    /** Since #8 an order needs a product; the scenarios here are about the order itself, so any product will do. */
+    private long insertProduct() {
+        return jdbcTemplate.queryForObject(
+                "INSERT INTO product (description) VALUES ('Any product') RETURNING id", Long.class);
     }
 
     private long count(String table) {
