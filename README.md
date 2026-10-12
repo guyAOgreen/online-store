@@ -2,7 +2,8 @@
 The Store application keeps track of customers, their orders, and the products those orders contain, in a PostgreSQL database behind a small JSON API.
 
 * [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request it makes against it, so it describes what the running service does.
-* [SOLUTION.md](SOLUTION.md) is the design record: one section per GitHub issue with what was chosen, what was considered and why, and the measurements behind the performance work.
+* [SOLUTION.md](SOLUTION.md) is the five-minute summary: what was delivered, the decisions most likely to be questioned, the performance evidence, the compatibility changes and the limitations.
+* [docs/design-record.md](docs/design-record.md) is the full design record behind it: one section per GitHub issue with what was chosen, what was considered and why, and the measurements behind the performance work.
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
 # Quick start from a clean checkout
@@ -158,7 +159,7 @@ There are two test suites:
 `./gradlew check` runs both. Spotless formatting violations fail `check` too; `./gradlew spotlessApply` fixes them.
 
 # Performance measurement
-The GET endpoints are measured, not just tested, because the production database sits behind a high-latency link. `./gradlew latencyBenchmark` (Docker required, not part of `check`) runs every GET request against a PostgreSQL container reached through a Toxiproxy latency toxic, on the seed plus a larger product dataset, and writes `build/reports/latency-benchmark.md`: statements prepared, statements and rows as PostgreSQL counted them, query plans, response bytes with and without gzip, median timings with and without the simulated latency, and the number of round trips derived from the difference. `-Platency=<ms>` sets the one-way latency (default 25). The before-and-after figures and the decisions taken on them are in SOLUTION.md under #9. `ReadQueryCountIntegrationTest`, which is part of `check`, holds the statement count of every GET endpoint constant whatever the dataset size.
+The GET endpoints are measured, not just tested, because the production database sits behind a high-latency link. `./gradlew latencyBenchmark` (Docker required, not part of `check`) runs every GET request against a PostgreSQL container reached through a Toxiproxy latency toxic, on the seed plus a larger product dataset, and writes `build/reports/latency-benchmark.md`: statements prepared, statements and rows as PostgreSQL counted them, query plans, response bytes with and without gzip, median timings with and without the simulated latency, and the number of round trips derived from the difference. `-Platency=<ms>` sets the one-way latency (default 25). The before-and-after figures and the decisions taken on them are in docs/design-record.md under #9. `ReadQueryCountIntegrationTest`, which is part of `check`, holds the statement count of every GET endpoint constant whatever the dataset size.
 
 # Data model
 * A **customer** has an ID, a name, and zero or more orders.
@@ -195,7 +196,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 
 **Writes.** Creating an order checks the customer and all products exist before anything is written and saves the order and its associations in one transaction, so a rejected request writes nothing. A repeated product is rejected rather than collapsed because quantities are not in the model and a duplicate is most likely a client bug.
 
-The full detail of each decision, and the alternatives, is in SOLUTION.md: validation and the error contract under #4, the lookup under #5, search under #6, the product model and the legacy-order policy under #7, the product endpoints and duplicate handling under #8, the fetch strategy and measurements under #9, and this documentation under #10.
+The full detail of each decision, and the alternatives, is in docs/design-record.md: validation and the error contract under #4, the lookup under #5, search under #6, the product model and the legacy-order policy under #7, the product endpoints and duplicate handling under #8, the fetch strategy and measurements under #9, and this documentation under #10.
 
 # Worked examples
 Each assignment task below is demonstrated against a fresh database, in this order, so the IDs match; after the quick start's requests, `docker compose down -v` and `docker compose up` give a fresh one. Responses are shown as the server returns them, pretty-printed; the long order lists in the search results are elided. `OpenApiContractIntegrationTest` runs the same sequence on every build.
@@ -477,13 +478,13 @@ Every GET endpoint issues exactly one SQL statement whatever the dataset holds, 
 ```shell
 ./gradlew latencyBenchmark                # 25 ms each way; -Platency=50 for more
 ```
-It writes `build/reports/latency-benchmark.md`. The figures from the run that decided the design are in SOLUTION.md under #9; in short, the customer listing went from 13 round trips (705 ms at 25 ms latency) to 2 (127 ms), every other read was already at the floor the read-only transaction sets, an index on `"order".customer_id` was added for the search once its effect was shown at a million orders, and gzip cuts the benchmark dataset's 2 MB order listing to 240 KB on the wire. From the running application the effect is visible as response time alone; the statement counts and plans need the benchmark's instrumentation.
+It writes `build/reports/latency-benchmark.md`. The figures from the run that decided the design are in docs/design-record.md under #9; in short, the customer listing went from 13 round trips (705 ms at 25 ms latency) to 2 (127 ms), every other read was already at the floor the read-only transaction sets, an index on `"order".customer_id` was added for the search once its effect was shown at a million orders, and gzip cuts the benchmark dataset's 2 MB order listing to 240 KB on the wire. From the running application the effect is visible as response time alone; the statement counts and plans need the benchmark's instrumentation.
 
 ## Bonus: CI and the Docker image
 Every pull request runs `./gradlew clean check bootJar`, builds the image and smoke-tests it; a push to `master` publishes it. See [Continuous integration](#continuous-integration) and [Docker image](#docker-image); `docker compose up --build` runs this checkout's image against PostgreSQL in one command.
 
 # Assumptions and production notes
-The decisions most likely to be questioned, each recorded in full in SOLUTION.md:
+The decisions most likely to be questioned, each recorded in full in docs/design-record.md:
 
 * **Legacy orders stay without products (#7).** No association is invented for existing orders and no backfill is planned; the "at least one product" rule applies to orders created through the API and lives in the application, not the schema.
 * **Duplicate products in an order are a 400 (#8),** not collapsed, because quantities are not in the model.
