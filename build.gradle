@@ -108,6 +108,8 @@ dependencies {
     integrationTestImplementation 'org.testcontainers:postgresql'
     integrationTestImplementation 'org.testcontainers:junit-jupiter'
     integrationTestImplementation 'org.testcontainers:toxiproxy'
+    // Validates every MockMvc exchange in the suite against OpenAPI.yaml (#10); see OpenApiContractConfig.
+    integrationTestImplementation 'com.atlassian.oai:swagger-request-validator-mockmvc:2.44.9'
     integrationTestCompileOnly 'org.projectlombok:lombok'
     integrationTestAnnotationProcessor 'org.projectlombok:lombok'
 }
