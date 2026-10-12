@@ -1,13 +1,13 @@
 # Store Application
 The Store application keeps track of customers, their orders, and the products those orders contain, in a PostgreSQL database behind a small JSON API.
 
-* [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request it makes against it, so it describes what the running service does.
+* [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request the server accepts and every response it exercises against it, so it describes what the running service does.
 * [SOLUTION.md](SOLUTION.md) is the five-minute summary: what was delivered, the decisions most likely to be questioned, the performance evidence, the compatibility changes and the limitations.
 * [docs/design-record.md](docs/design-record.md) is the full design record behind it: one section per GitHub issue with what was chosen, what was considered and why, and the measurements behind the performance work.
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
 # Quick start from a clean checkout
-You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles nothing on your machine and needs no login to the private registry the published image lives in (it does pull the public `postgres` and Temurin images and the build's Gradle dependencies), then starts PostgreSQL 16.2 and the application:
+You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles nothing on your machine and needs no login for the published image, which is a private package (it does pull the public `postgres` and Temurin images and the build's Gradle dependencies), then starts PostgreSQL 16.2 and the application:
 
 ```shell
 git clone https://github.com/guyAOgreen/online-store.git
@@ -101,7 +101,7 @@ The service is also delivered as a Docker image, built from the `Dockerfile` at 
 | `ghcr.io/guyaogreen/online-store:sha-<short sha>` | the exact commit it was built from |
 | `ghcr.io/guyaogreen/online-store:<version>` | a `v<version>` git tag, for example `v1.0.0` |
 
-The repository is private, so pulling needs `docker login ghcr.io` with a GitHub token that has `read:packages`. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
+The repository is public, but the container package has its own visibility and is private, so pulling needs `docker login ghcr.io` with a GitHub token that has `read:packages`. Building locally needs nothing but Docker: the builder stage compiles the source with the committed Gradle wrapper on a JDK 17 image, and the runtime stage is a JRE with the boot jar's layers extracted, running as a non-root user.
 ```shell
 docker pull ghcr.io/guyaogreen/online-store:latest   # or:
 docker build -t ghcr.io/guyaogreen/online-store:latest .
