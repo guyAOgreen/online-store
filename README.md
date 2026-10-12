@@ -1,19 +1,18 @@
 # Store Application
-The Store application keeps track of customers and orders in a database.
+The Store application keeps track of customers, their orders, and the products those orders contain, in a PostgreSQL database behind a small JSON API.
 
-# Assumptions
-This README assumes you're using a posix environment. It's possible to run this on Windows as well:
-* Instead of `./gradlew` use `gradlew.bat`
-* The syntax for creating the Docker container is different. You could also install PostgreSQL on bare metal if you prefer
+* [OpenAPI.yaml](OpenAPI.yaml) is the API contract. The integration suite validates every request it makes against it, so it describes what the running service does.
+* [SOLUTION.md](SOLUTION.md) is the design record: one section per GitHub issue with what was chosen, what was considered and why, and the measurements behind the performance work.
+* The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
+# Quick start from a clean checkout
+You need Git, Docker (Docker Desktop on Windows and macOS) and a JDK. The build compiles and tests on **Java 17**, which the Gradle toolchain downloads automatically if it is not installed; the only requirement on the JDK you have is that Gradle 8.11 can start on it, which means **Java 17 to 23**. On a machine whose default JDK is newer, point `JAVA_HOME` at a 17–23 JDK for the wrapper (see [Windows and other differences](#windows-and-other-differences)).
 
-# Prerequisites
-This service assumes the presence of a postgresql 16.2 database server running on localhost:5433 (note the non-standard port)
-It assumes a username and password `admin:admin` can be used.
-It assumes there's already a database called `store`
-
-You can start the PostgreSQL instance like this:
 ```shell
+git clone https://github.com/guyAOgreen/online-store.git
+cd online-store
+
+# 1. PostgreSQL 16.2 on localhost:5433 (note the non-standard port), user and password admin, database store
 docker run -d \
   --name postgres \
   --restart always \
@@ -24,15 +23,49 @@ docker run -d \
   -p 5433:5432 \
   postgres:16.2 \
   postgres -c wal_level=logical
-```
 
-# Running the application
-You should be able to run the service using
-```shell
+# 2. The same gate CI runs: format check, unit tests, integration tests (Testcontainers, so Docker must be running), jar
+./gradlew clean check bootJar
+
+# 3. Run it; Liquibase creates the schema and loads the seed data on first start
 ./gradlew bootRun
+
+# 4. From another terminal
+curl localhost:8080/order/1
 ```
 
-The application uses Liquibase to migrate the schema. Some sample data is provided. You can create more data by reading the documentation in utils/README.md
+The seed data is 100 customers and 10,000 orders and no products. The database is migrated by Liquibase from `src/main/resources/db/changelog`; five changesets run on an empty database (schema, seed data, sequence repair, product tables, an index), and a database that already holds some of them receives only the rest. To generate more data see [utils/README.md](utils/README.md), which explains why it must go into a new changeset rather than into an applied one.
+
+The application reads its database connection from Spring Boot's standard properties, so `bootRun` can be pointed elsewhere with environment variables, exactly as the Docker image is:
+
+| Variable | Default in `application.yaml` |
+|----------|-------------------------------|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5433/store` |
+| `SPRING_DATASOURCE_USERNAME` | `admin` |
+| `SPRING_DATASOURCE_PASSWORD` | `admin` |
+
+# Windows and other differences
+The commands in this file are written for a POSIX shell. Everything works on Windows with these substitutions, which were checked on Windows 11 with Docker Desktop:
+
+* **Gradle wrapper.** Use `gradlew.bat` instead of `./gradlew` in PowerShell or `cmd`; `./gradlew` also works from Git Bash. The Unix wrapper is committed with its executable bit set (git mode `100755`) and `.gitattributes` forces LF line endings on it, so a checkout made on Windows and pushed back still runs on the Linux CI runner and inside the Docker build. If a copy ever loses the bit (for example after being zipped), `chmod +x gradlew` restores it; `git update-index --chmod=+x gradlew` records it.
+* **JDK for the wrapper.** Gradle 8.11 starts on Java 17 to 23. If `java -version` reports something newer, set `JAVA_HOME` for the command: `$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'; .\gradlew.bat check` in PowerShell, or `JAVA_HOME=/path/to/jdk-21 ./gradlew check` in bash. The Java 17 toolchain used for compiling and testing is unaffected.
+* **Line continuation.** Bash continues a line with `\`; PowerShell uses a backtick. The PostgreSQL container in PowerShell:
+  ```powershell
+  docker run -d `
+    --name postgres `
+    --restart always `
+    -e POSTGRES_USER=admin `
+    -e POSTGRES_PASSWORD=admin `
+    -e POSTGRES_DB=store `
+    -v postgres:/var/lib/postgresql/data `
+    -p 5433:5432 `
+    postgres:16.2 `
+    postgres -c wal_level=logical
+  ```
+* **curl.** In PowerShell `curl` is an alias for `Invoke-WebRequest`; write `curl.exe`, which Windows 10 and 11 ship. PowerShell 5.1 also strips the double quotes from a JSON body passed as an argument, so a request body is best read from a file: `curl.exe -H "Content-Type: application/json" -d "@body.json" localhost:8080/customer`. `Invoke-RestMethod -Method Post -ContentType application/json -Body '{"name":"Ada Lovelace"}' localhost:8080/customer` is the native equivalent.
+* **Path length.** Cloning into a deeply nested directory can fail with `Filename too long`, because Git for Windows observes the 260-character path limit by default. Clone somewhere shorter, or run `git config --global core.longpaths true` first.
+* **Shell scripts.** `.github/scripts/smoke-test.sh` is a bash script; run it from Git Bash (`bash .github/scripts/smoke-test.sh <image>`), which Git for Windows installs. `docker compose` and `docker build` are the same on every platform.
+* **Alternatively**, install PostgreSQL 16 directly instead of in Docker; the application only needs a `store` database reachable on `localhost:5433` with the credentials above. Docker is still required for the integration tests.
 
 # Docker image
 The service is also delivered as a Docker image, built from the `Dockerfile` at the repository root and published to GitHub Container Registry by CI (see below):
@@ -67,7 +100,7 @@ docker compose up --build    # builds the image from this checkout instead
 docker compose down -v       # stops both and drops the database volume
 ```
 
-To run the image next to the standalone `postgres` container from the prerequisites instead, put both on one Docker network so the application can reach it by name:
+To run the image next to the standalone `postgres` container from the quick start instead, put both on one Docker network so the application can reach it by name:
 ```shell
 docker network create store
 docker network connect store postgres
@@ -89,54 +122,374 @@ Test results for both suites, the coverage report and the jar are uploaded as wo
 
 A second job then builds the Docker image and runs the smoke test above against it. On a pull request that is where it stops: no registry login happens, so no credentials are needed and nothing is published. On a push to `master`, or of a `v*` tag, the same build is pushed to `ghcr.io/guyaogreen/online-store` with the tags listed under *Docker image*, using the workflow's own `GITHUB_TOKEN`. Publication is reached only after both the test suites and the smoke test have passed.
 
-The same gate can be run locally with:
+The same gate, exactly as the workflow invokes it, runs locally with:
 ```shell
 ./gradlew clean check bootJar
 ```
 
-Gradle itself needs a JDK to start: install any JDK that Gradle 8.11 can run on (Java 17 to 23 are good choices) before running the wrapper.
-The build then declares a Java 17 toolchain. If JDK 17 is not the installed JDK, the Foojay toolchain resolver downloads it automatically for compiling and testing.
-
 There are two test suites:
 * `./gradlew test` runs the unit tests in `src/test`. Controller tests mock the services and service tests mock the repositories, so they need no database.
-* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes.
+* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes. This suite also holds the API to `OpenAPI.yaml`: every response any test receives is validated against the document, and `OpenApiContractIntegrationTest` sends one request for every documented response and checks the set reached equals the set documented, so the document can neither drift from the code nor promise a status code nothing produces.
 
-`./gradlew check` runs both.
+`./gradlew check` runs both. Spotless formatting violations fail `check` too; `./gradlew spotlessApply` fixes them.
 
 # Performance measurement
 The GET endpoints are measured, not just tested, because the production database sits behind a high-latency link. `./gradlew latencyBenchmark` (Docker required, not part of `check`) runs every GET request against a PostgreSQL container reached through a Toxiproxy latency toxic, on the seed plus a larger product dataset, and writes `build/reports/latency-benchmark.md`: statements prepared, statements and rows as PostgreSQL counted them, query plans, response bytes with and without gzip, median timings with and without the simulated latency, and the number of round trips derived from the difference. `-Platency=<ms>` sets the one-way latency (default 25). The before-and-after figures and the decisions taken on them are in SOLUTION.md under #9. `ReadQueryCountIntegrationTest`, which is part of `check`, holds the statement count of every GET endpoint constant whatever the dataset size.
 
 # Data model
-An order has an ID, a description, and is associated with the customer which made the order.
-A customer has an ID, a name, and 0 or more orders.
+* A **customer** has an ID, a name, and zero or more orders.
+* An **order** has an ID, a description, belongs to exactly one customer, and contains products. An order created through this API contains one or more; an order that predates products (every seeded order) contains none and is reported with an empty list. No association was invented for those orders and none will be, so clients must accept an empty `products` array indefinitely.
+* A **product** has an ID and a description and appears in zero or more orders. The same product appears in an order at most once; there are no quantities.
+
+IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on a create. The relationship between orders and products is the `order_product` join table, keyed on the pair, with a second index on `product_id` for the product-to-orders direction, and `"order".customer_id` is indexed for the customer search.
 
 # API
-Two endpoints are provided:
-   * /order
-   * /customer
+| Method and path | Purpose | Success | Client errors |
+|-----------------|---------|---------|---------------|
+| `GET /customer` | every customer with the IDs and descriptions of their orders | 200 | |
+| `GET /customer?q=words` | customers whose name contains every word of `q` | 200 | |
+| `POST /customer` | create a customer from `{"name"}` | 201 | 400, 415 |
+| `GET /order` | every order with its customer and products | 200 | |
+| `GET /order/{id}` | one order | 200 | 400, 404 |
+| `POST /order` | create an order from `{"description", "customer": {"id"}, "products": [{"id"}, …]}` | 201 | 400, 415, 422 |
+| `GET /products` | every product with the IDs of the orders containing it | 200 | |
+| `GET /products/{id}` | one product | 200 | 400, 404 |
+| `POST /products` | create a product from `{"description"}` | 201 | 400, 415 |
 
-Each of them supports a POST and a GET. The data model is circular - a customer owns a number of orders, and that order necessarily refers back to the customer which owns it.
-To avoid loops in the serializer, when writing out a Customer or an Order, they're mapped to CustomerDTO and OrderDTO which contain truncated versions of the dependent object - CustomerOrderDTO and OrderCustomerDTO respectively.
+`/products` is plural because the assignment names it so; `/order` and `/customer` keep their original paths.
 
-The API is documented in the OpenAPI file OpenAPI.yaml. Note that this spec includes part of one of the tasks below (the new /products endpoint)
+**Responses.** The data model is circular, so each representation truncates the other side: a customer's orders carry only ID and description, an order's customer only ID and name, an order's products only ID and description, and a product's orders are IDs alone. Every list, and every nested list, is in ascending ID order. Lists are not paginated; `GET /order` returns all 10,000 seeded orders (about 1.1 MB on the seed alone, or 113 KB with `Accept-Encoding: gzip`, which the server honours for JSON).
 
-# Tasks
+**Errors.** Every client error is an RFC 9457 problem document, `application/problem+json`, with `type`, `title`, `status`, `detail` and `instance`, plus an `errors` array of `{field, message}` whenever a field can be named. One rule decides the status:
 
+* **400** when the request itself is wrong: malformed JSON, a duplicated key, an unknown field (which is how a client-supplied `id` is rejected), a missing or blank string, more than 255 characters or a NUL character, a fractional ID, a missing or empty `products` array, the same product listed twice, or a path or query value that cannot be converted.
+* **404** when the resource named in the URL does not exist.
+* **415** when a create is sent with a `Content-Type` that is not JSON (`application/json`, or any `application/*+json`).
+* **422** when the body is well formed but references a customer or product that does not exist. Every missing product ID is named, so one correction fixes the request.
+
+**Search semantics.** `q` is split on whitespace; a customer matches when every word is a case-insensitive substring of their name, in any order, so `ann` matches `Dianne Lemke` and `ed glover` matches only `Ed Glover`. A query that is empty or only whitespace lists everyone. `%`, `_` and `\` match themselves, and a character no name can contain (a NUL) matches nothing, without a client error. Matching runs in the database in one statement.
+
+**Writes.** Creating an order checks the customer and all products exist before anything is written and saves the order and its associations in one transaction, so a rejected request writes nothing. A repeated product is rejected rather than collapsed because quantities are not in the model and a duplicate is most likely a client bug.
+
+The full detail of each decision, and the alternatives, is in SOLUTION.md: validation and the error contract under #4, the lookup under #5, search under #6, the product model and the legacy-order policy under #7, the product endpoints and duplicate handling under #8, the fetch strategy and measurements under #9, and this documentation under #10.
+
+# Worked examples
+Each assignment task below is demonstrated against a fresh database started as in the quick start, in this order, so the IDs match. Responses are shown as the server returns them, pretty-printed; the long order lists in the search results are elided. `OpenApiContractIntegrationTest` runs the same sequence on every build.
+
+## Task 4 first: products, because orders now need them
+Create two products:
+```shell
+curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"description": "Lamp"}'
+curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"description": "Chair"}'
+```
+```json
+{
+  "id": 1,
+  "description": "Lamp",
+  "orders": []
+}
+{
+  "id": 2,
+  "description": "Chair",
+  "orders": []
+}
+```
+Create an order containing both for customer 1. The response carries the products in ID order whatever order the body listed them:
+```shell
+curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
+  -d '{"description": "Reading lamp and chair", "customer": {"id": 1}, "products": [{"id": 2}, {"id": 1}]}'
+```
+```json
+{
+  "id": 10001,
+  "description": "Reading lamp and chair",
+  "customer": {
+    "id": 1,
+    "name": "Muriel Donnelly"
+  },
+  "products": [
+    {
+      "id": 1,
+      "description": "Lamp"
+    },
+    {
+      "id": 2,
+      "description": "Chair"
+    }
+  ]
+}
+```
+Products report the orders that contain them, as IDs:
+```shell
+curl -s localhost:8080/products
+curl -s localhost:8080/products/1
+```
+```json
+[
+  {
+    "id": 1,
+    "description": "Lamp",
+    "orders": [
+      10001
+    ]
+  },
+  {
+    "id": 2,
+    "description": "Chair",
+    "orders": [
+      10001
+    ]
+  }
+]
+{
+  "id": 1,
+  "description": "Lamp",
+  "orders": [
+    10001
+  ]
+}
+```
+An order that predates products has an empty list; it is still a valid order:
+```shell
+curl -s localhost:8080/order/1
+```
+```json
+{
+  "id": 1,
+  "description": "Handcrafted Soft Chair",
+  "customer": {
+    "id": 6,
+    "name": "Vicki Kutch"
+  },
+  "products": []
+}
+```
+The error cases: a missing `products` array (the pre-product request shape), the same product twice, and a product that does not exist. The first two are 400 because the request is wrong in itself; the third is 422 because the request is well formed but the reference dangles. None of them writes anything:
+```shell
+curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
+  -d '{"description": "No products", "customer": {"id": 1}}'
+curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
+  -d '{"description": "Twice", "customer": {"id": 1}, "products": [{"id": 1}, {"id": 1}]}'
+curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
+  -d '{"description": "Unknown", "customer": {"id": 1}, "products": [{"id": 1}, {"id": 7001}, {"id": 7002}]}'
+```
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid request content.",
+  "instance": "/order",
+  "errors": [
+    {
+      "field": "products",
+      "message": "must not be empty"
+    }
+  ]
+}
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid request content.",
+  "instance": "/order",
+  "errors": [
+    {
+      "field": "products",
+      "message": "must not contain the same product more than once"
+    }
+  ]
+}
+{
+  "type": "about:blank",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "Products 7001, 7002 do not exist",
+  "instance": "/order"
+}
+```
+A client-supplied ID is an unknown field, on every create:
+```shell
+curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"id": 1, "description": "Lamp"}'
+```
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Unknown field 'id'",
+  "instance": "/products",
+  "errors": [
+    {
+      "field": "id",
+      "message": "unknown field"
+    }
+  ]
+}
+```
+
+## Task 1: an order by ID
+```shell
+curl -s -i localhost:8080/order/10001
+```
+```
+HTTP/1.1 200 
+vary: accept-encoding
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Mon, 12 Oct 2026 08:55:10 GMT
+
+{"id":10001,"description":"Reading lamp and chair","customer":{"id":1,"name":"Muriel Donnelly"},"products":[{"id":1,"description":"Lamp"},{"id":2,"description":"Chair"}]}
+```
+A missing order is 404 and a malformed ID is 400, both as problem documents:
+```shell
+curl -s localhost:8080/order/999999
+curl -s localhost:8080/order/abc
+```
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Order 999999 does not exist",
+  "instance": "/order/999999"
+}
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Invalid value for 'id'",
+  "instance": "/order/abc",
+  "errors": [
+    {
+      "field": "id",
+      "message": "invalid value"
+    }
+  ]
+}
+```
+
+## Task 2: customers by a substring of a word in their name
+```shell
+curl -s 'localhost:8080/customer?q=ann'
+```
+```json
+[
+  {
+    "id": 2,
+    "name": "Lance Stiedemann Sr.",
+    "orders": [
+      {
+        "id": 17,
+        "description": "Rustic Bronze Salad"
+      },
+      {
+        "id": 113,
+        "description": "Practical Soft Salad"
+      }
+      ... 97 more orders ...
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Dianne Lemke",
+    "orders": [
+      {
+        "id": 5,
+        "description": "Recycled Wooden Shoes"
+      },
+      {
+        "id": 123,
+        "description": "Incredible Concrete Salad"
+      }
+      ... 86 more orders ...
+    ]
+  },
+  {
+    "id": 18,
+    "name": "Angelo Pfannerstill",
+    "orders": [
+      {
+        "id": 19,
+        "description": "Sleek Cotton Towels"
+      },
+      {
+        "id": 30,
+        "description": "Refined Soft Computer"
+      }
+      ... 104 more orders ...
+    ]
+  }
+]
+```
+Several words must all match, in any order; an unmatched query is an empty list rather than an error:
+```shell
+curl -s 'localhost:8080/customer?q=glover%20ed'
+curl -s 'localhost:8080/customer?q=zzzz'
+```
+```json
+[
+  {
+    "id": 100,
+    "name": "Ed Glover",
+    "orders": [
+      {
+        "id": 169,
+        "description": "Oriental Rubber Hat"
+      },
+      {
+        "id": 183,
+        "description": "Bespoke Cotton Shoes"
+      }
+      ... 102 more orders ...
+    ]
+  }
+]
+[]
+```
+
+## Task 3: performance of the GET endpoints
+Every GET endpoint issues exactly one SQL statement whatever the dataset holds, which the suite asserts. The evidence that this is what matters over a high-latency link is produced by the benchmark:
+```shell
+./gradlew latencyBenchmark                # 25 ms each way; -Platency=50 for more
+```
+It writes `build/reports/latency-benchmark.md`. The figures from the run that decided the design are in SOLUTION.md under #9; in short, the customer listing went from 13 round trips (705 ms at 25 ms latency) to 2 (127 ms), every other read was already at the floor the read-only transaction sets, an index on `"order".customer_id` was added for the search once its effect was shown at a million orders, and gzip cuts the benchmark dataset's 2 MB order listing to 240 KB on the wire. From the running application the effect is visible as response time alone; the statement counts and plans need the benchmark's instrumentation.
+
+## Bonus: CI and the Docker image
+Every pull request runs `./gradlew clean check bootJar`, builds the image and smoke-tests it; a push to `master` publishes it. See [Continuous integration](#continuous-integration) and [Docker image](#docker-image); `docker compose up --build` runs this checkout's image against PostgreSQL in one command.
+
+# Assumptions and production notes
+The decisions most likely to be questioned, each recorded in full in SOLUTION.md:
+
+* **Legacy orders stay without products (#7).** No association is invented for existing orders and no backfill is planned; the "at least one product" rule applies to orders created through the API and lives in the application, not the schema.
+* **Duplicate products in an order are a 400 (#8),** not collapsed, because quantities are not in the model.
+* **404 is for the URL, 422 for the body (#4).** A dangling `customer.id` or product ID is 422; only the resource in the path is 404.
+* **Client-supplied IDs and unknown fields are 400 (#4).** The old endpoints merged a supplied ID into an existing row; that is now impossible.
+* **Search requires every word (#6)** and runs in the database; the name column has no index because `ILIKE '%…%'` cannot use a b-tree and the table is one page.
+* **Reads cost two round trips, not one (#9).** Each read is a read-only transaction whose `COMMIT` is its own round trip; autocommit reads would halve the floor and are recorded as the option not taken.
+* **Lists are not paginated.** A pagination contract is a separate decision; `GET /order` returns everything.
+* **Migrations and rolling deploys.** The sequence repair (#3) locks `customer` and `"order"` in `SHARE` mode for one short transaction; the product tables (#7) are additive but adding the foreign key briefly blocks order inserts; the index (#9) is built `CONCURRENTLY` and, if interrupted, must be dropped by hand before the next start succeeds. An instance of the previous release running during a deploy keeps working against the migrated schema; orders it creates fall under the legacy rule.
+* **Seed and generated data are changesets.** Applied changesets are never edited; new data is a new changeset ([utils/README.md](utils/README.md)).
+
+# The assignment
+The text below is the original task description, kept for reference.
+
+## Tasks
 1. Extend the order endpoint to find a specific order, by ID
 2. Extend the customer endpoint to find customers based on a query string to match a substring of one of the words in their name
 3. Users have complained that in production the GET endpoints can get very slow. The database is unfortunately not co-located with the application server, and there's high latency between the two. Identify if there are any optimisations that can improve performance
 4. Add a new endpoint /products to model products which appear in an order:
-      * A single order contains 1 or more products. 
-      * A product has an ID and a description. 
+      * A single order contains 1 or more products.
+      * A product has an ID and a description.
       * Add a POST endpoint to create a product
       * Add a GET endpoint to return all products, and a specific product by ID
         * In both cases, also return a list of the order IDs which contain those products
       * Change the orders endpoint to return a list of products contained in the order
 
-# Bonus points
+## Bonus points
 1. Implement a CI pipeline on the platform of your choice to build the project and deliver it as a Dockerized image
 
-# Notes on the tasks
+## Notes on the tasks
 Assume that the project represents a production application.
 Think carefully about the impact on performance when implementing your changes
 The specifications of the tasks have been left deliberately vague. You will be required to exercise judgement about what to deliver - in a real world environment, you would clarify these points in refinement, but since this is a project to be completed without interaction, feel free to make assumptions - but be prepared to defend them when asked.

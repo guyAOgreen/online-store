@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
             "logging.level.org.hibernate.engine.internal.StatisticalLoggingSessionEventListener=WARN"
         })
 @AutoConfigureMockMvc
-@Import({PostgresContainerConfig.class, DatabaseCleaner.class})
+@Import({PostgresContainerConfig.class, DatabaseCleaner.class, OpenApiContractConfig.class})
 public abstract class AbstractIntegrationTest {
 
     @Autowired
