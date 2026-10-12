@@ -6,12 +6,36 @@ The Store application keeps track of customers, their orders, and the products t
 * The original assignment text is kept at the end of this file under [The assignment](#the-assignment).
 
 # Quick start from a clean checkout
-You need Git, Docker (Docker Desktop on Windows and macOS) and a JDK. The build compiles and tests on **Java 17**, which the Gradle toolchain downloads automatically if it is not installed; the only requirement on the JDK you have is that Gradle 8.11 can start on it, which means **Java 17 to 23**. On a machine whose default JDK is newer, point `JAVA_HOME` at a 17–23 JDK for the wrapper (see [Windows and other differences](#windows-and-other-differences)).
+You need Git and Docker (Docker Desktop on Windows and macOS); nothing else. The compose file builds the image from the checkout, which compiles and tests nothing on your machine and needs no registry access, then starts PostgreSQL 16.2 and the application:
 
 ```shell
 git clone https://github.com/guyAOgreen/online-store.git
 cd online-store
+docker compose up --build
+```
 
+The application is ready when its log shows `Started StoreApplication`; Liquibase has created the schema and loaded the seed data (100 customers, 10,000 orders, no products) by then. From another terminal, create a product, put it in an order for a seeded customer, then read the order, the product and the customer back:
+```shell
+curl -s -X POST localhost:8080/products -H 'Content-Type: application/json' -d '{"description": "Lamp"}'
+curl -s -X POST localhost:8080/order -H 'Content-Type: application/json' \
+  -d '{"description": "Reading lamp", "customer": {"id": 1}, "products": [{"id": 1}]}'
+curl -s localhost:8080/order/10001
+curl -s localhost:8080/products/1
+curl -s 'localhost:8080/customer?q=muriel'
+```
+```json
+{"id":1,"description":"Lamp","orders":[]}
+{"id":10001,"description":"Reading lamp","customer":{"id":1,"name":"Muriel Donnelly"},"products":[{"id":1,"description":"Lamp"}]}
+{"id":10001,"description":"Reading lamp","customer":{"id":1,"name":"Muriel Donnelly"},"products":[{"id":1,"description":"Lamp"}]}
+{"id":1,"description":"Lamp","orders":[10001]}
+[{"id":1,"name":"Muriel Donnelly","orders":[{"id":158,"description":"Awesome Concrete Shirt"},…,{"id":10001,"description":"Reading lamp"}]}]
+```
+`docker compose down -v` stops both containers and drops the database. The [API](#api) table lists every endpoint and the [worked examples](#worked-examples) walk through each assignment task with the real responses, including the error cases. On Windows write `curl.exe` and read JSON bodies from a file; see [Windows and other differences](#windows-and-other-differences).
+
+# Development setup
+To build, test or run the application outside Docker you also need a JDK. The build compiles and tests on **Java 17**, which the Gradle toolchain downloads automatically if it is not installed; the only requirement on the JDK you have is that Gradle 8.11 can start on it, which means **Java 17 to 23**. On a machine whose default JDK is newer, point `JAVA_HOME` at a 17–23 JDK for the wrapper (see [Windows and other differences](#windows-and-other-differences)). The compose file's database is published on `localhost:5433` with the credentials below, so if it is still up from the quick start, skip step 1 (`docker compose up db` starts it alone).
+
+```shell
 # 1. PostgreSQL 16.2 on localhost:5433 (note the non-standard port), user and password admin, database store
 docker run -d \
   --name postgres \
@@ -93,7 +117,7 @@ The image listens on port 8080 and reads its database connection from Spring Boo
 
 Liquibase runs on startup, exactly as under `bootRun`, so an empty `store` database is enough. The image declares a `HEALTHCHECK` on `GET /actuator/health`, which reports `UP` only once the migrations have run, the web server is accepting requests and the database answers a ping; that is the only actuator endpoint exposed.
 
-The quickest way to run it against PostgreSQL is the compose file, which starts `postgres:16.2` with the credentials above (also published on `localhost:5433` for `bootRun`, so stop the standalone `postgres` container first) and the application on `localhost:8080`:
+The compose file from the quick start starts `postgres:16.2` with the credentials above (also published on `localhost:5433` for `bootRun`, so the standalone `postgres` container from the development setup and the compose database cannot run at the same time) and the application on `localhost:8080`:
 ```shell
 docker compose up            # pulls the published image
 docker compose up --build    # builds the image from this checkout instead
@@ -129,7 +153,7 @@ The same gate, exactly as the workflow invokes it, runs locally with:
 
 There are two test suites:
 * `./gradlew test` runs the unit tests in `src/test`. Controller tests mock the services and service tests mock the repositories, so they need no database.
-* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes. This suite also holds the API to `OpenAPI.yaml`: every response any test receives is validated against the document, and `OpenApiContractIntegrationTest` sends one request for every documented response and checks the set reached equals the set documented, so the document can neither drift from the code nor promise a status code nothing produces.
+* `./gradlew integrationTest` runs the tests in `src/integrationTest` against a PostgreSQL 16.2 container started by Testcontainers. Docker must be running; the suite fails rather than skips without it. No pre-existing `store` database is needed, and the container is removed when the run finishes. This suite also holds the API to `OpenAPI.yaml`: every request the suite makes and every response it receives is validated against the document, and `OpenApiContractIntegrationTest` sends one request for every documented response and checks the set reached equals the set documented. That covers the exchanges the suite exercises, not every input the API could receive: a response shape or status code that only an untested input produces is outside what the check can see.
 
 `./gradlew check` runs both. Spotless formatting violations fail `check` too; `./gradlew spotlessApply` fixes them.
 
@@ -174,7 +198,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 The full detail of each decision, and the alternatives, is in SOLUTION.md: validation and the error contract under #4, the lookup under #5, search under #6, the product model and the legacy-order policy under #7, the product endpoints and duplicate handling under #8, the fetch strategy and measurements under #9, and this documentation under #10.
 
 # Worked examples
-Each assignment task below is demonstrated against a fresh database started as in the quick start, in this order, so the IDs match. Responses are shown as the server returns them, pretty-printed; the long order lists in the search results are elided. `OpenApiContractIntegrationTest` runs the same sequence on every build.
+Each assignment task below is demonstrated against a fresh database, in this order, so the IDs match; after the quick start's requests, `docker compose down -v` and `docker compose up` give a fresh one. Responses are shown as the server returns them, pretty-printed; the long order lists in the search results are elided. `OpenApiContractIntegrationTest` runs the same sequence on every build.
 
 ## Task 4 first: products, because orders now need them
 Create two products:
@@ -449,7 +473,7 @@ curl -s 'localhost:8080/customer?q=zzzz'
 ```
 
 ## Task 3: performance of the GET endpoints
-Every GET endpoint issues exactly one SQL statement whatever the dataset holds, which the suite asserts. The evidence that this is what matters over a high-latency link is produced by the benchmark:
+Every GET endpoint issues exactly one SQL statement whatever the dataset holds, which the suite asserts. That fixes the number of round trips, which is the cost a high-latency link multiplies; it does not fix the size of the work, because the three lists are unpaginated and their rows, memory and response bytes grow with the data. The evidence that round trips are what matters over such a link is produced by the benchmark:
 ```shell
 ./gradlew latencyBenchmark                # 25 ms each way; -Platency=50 for more
 ```
@@ -467,7 +491,7 @@ The decisions most likely to be questioned, each recorded in full in SOLUTION.md
 * **Client-supplied IDs and unknown fields are 400 (#4).** The old endpoints merged a supplied ID into an existing row; that is now impossible.
 * **Search requires every word (#6)** and runs in the database; the name column has no index because `ILIKE '%…%'` cannot use a b-tree and the table is one page.
 * **Reads cost two round trips, not one (#9).** Each read is a read-only transaction whose `COMMIT` is its own round trip; autocommit reads would halve the floor and are recorded as the option not taken.
-* **Lists are not paginated.** A pagination contract is a separate decision; `GET /order` returns everything.
+* **Lists are not paginated.** A pagination contract is a separate decision; `GET /order` returns everything, so the statement count is constant but the rows fetched, the memory held and the bytes sent grow with the table.
 * **Migrations and rolling deploys.** The sequence repair (#3) locks `customer` and `"order"` in `SHARE` mode for one short transaction; the product tables (#7) are additive but adding the foreign key briefly blocks order inserts; the index (#9) is built `CONCURRENTLY` and, if interrupted, must be dropped by hand before the next start succeeds. An instance of the previous release running during a deploy keeps working against the migrated schema; orders it creates fall under the legacy rule.
 * **Seed and generated data are changesets.** Applied changesets are never edited; new data is a new changeset ([utils/README.md](utils/README.md)).
 

@@ -22,6 +22,10 @@ spring:
       # A repeated key is a malformed body (400); without this Jackson reports it as a type definition error (500).
       strict-duplicate-detection: true
   jpa:
+    # Every response is mapped to its DTO inside the service's transaction (#4), so no request needs a persistence
+    # context that outlives the service call. Off, a lazy load from the web layer fails rather than silently issuing
+    # a query outside the transaction boundary, which keeps the one-statement-per-read guarantee (#9) observable.
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
