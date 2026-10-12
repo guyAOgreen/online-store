@@ -24,7 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * The #9 regression tests: on the {@link LargerDataset} every GET prepares a fixed number of SQL statements, the same
  * number as on the seed alone, and each response carries exactly the relationships the database holds, checked parent
  * by parent rather than by totals, so two customers swapping their orders would fail here. The expected counts are the
- * ones the #9 measurements settled on (see SOLUTION.md); they are constants of the fetch strategy, not of the data.
+ * ones the #9 measurements settled on (see docs/design-record.md); they are constants of the fetch strategy, not of the
+ * data.
  */
 class ReadQueryCountIntegrationTest extends AbstractIntegrationTest {
 
