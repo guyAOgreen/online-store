@@ -1,6 +1,6 @@
 # Runs the published image (or a local build with --build) against PostgreSQL (#11).
 #
-#   docker compose up            pulls ghcr.io/guyaogreen/online-store:latest
+#   docker compose up            pulls ghcr.io/guyaogreen/online-store:latest (IMAGE_TAG=sha-<short sha> for one commit)
 #   docker compose up --build    builds the image from this checkout instead
 #
 # The database is also published on localhost:5433 with the README's credentials, so `./gradlew bootRun` can use it
@@ -25,7 +25,7 @@ services:
       retries: 30
 
   app:
-    image: ghcr.io/guyaogreen/online-store:latest
+    image: ghcr.io/guyaogreen/online-store:${IMAGE_TAG:-latest}
     build: .
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/store
