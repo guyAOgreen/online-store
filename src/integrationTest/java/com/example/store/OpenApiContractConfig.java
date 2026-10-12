@@ -2,8 +2,7 @@ package com.example.store;
 
 import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers;
-import com.atlassian.oai.validator.report.LevelResolver;
-import com.atlassian.oai.validator.report.ValidationReport;
+import com.atlassian.oai.validator.whitelist.StatusType;
 import com.atlassian.oai.validator.whitelist.ValidationErrorsWhitelist;
 
 import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
@@ -13,8 +12,10 @@ import org.springframework.context.annotation.Bean;
 import java.nio.file.Path;
 
 import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.allOf;
+import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.isRequest;
 import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.messageContainsSubstring;
 import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.messageHasKey;
+import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.responseStatusTypeIs;
 
 /**
  * Holds {@code OpenAPI.yaml} to the implementation (#10). Every exchange the integration suite sends through
@@ -23,10 +24,11 @@ import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.messageH
  * a response that gains or loses a field, or an endpoint that gains a status code, fails the suite until the document
  * says so.
  *
- * <p>Request bodies, parameters and content types are deliberately not validated: the 4xx tests send malformed, unknown
- * and over-length input and the wrong media type on purpose, and what matters there is that the resulting error is
- * documented. The actuator paths are operational rather than part of the API and are the one exception to "the path
- * must be documented".
+ * <p>Requests are validated too, but only when the server accepted them: a request answered with a 4xx was meant to be
+ * invalid (the tests send malformed, unknown and over-length input and the wrong media type on purpose), and what
+ * matters there is that the resulting error is documented. A request answered with a 2xx must match its documented
+ * schema, so a request DTO cannot drift from the document while the suite stays green. The actuator paths are
+ * operational rather than part of the API and are the one exception to "the path must be documented".
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class OpenApiContractConfig {
@@ -38,14 +40,12 @@ public class OpenApiContractConfig {
     OpenApiInteractionValidator openApiValidator() {
         return OpenApiInteractionValidator.createForSpecificationUrl(
                         OPENAPI_DOCUMENT.toUri().toString())
-                .withLevelResolver(LevelResolver.create()
-                        .withLevel("validation.request.body", ValidationReport.Level.IGNORE)
-                        .withLevel("validation.request.parameter", ValidationReport.Level.IGNORE)
-                        .withLevel("validation.request.contentType", ValidationReport.Level.IGNORE)
-                        .build())
-                // The path rules look at the matched operation, and an unknown path has none, so the request path is
-                // taken from the message text instead.
                 .withWhitelist(ValidationErrorsWhitelist.create()
+                        .withRule(
+                                "A request the server rejected was meant to be invalid; the response is what is checked",
+                                allOf(isRequest(), responseStatusTypeIs(StatusType.CLIENT_ERROR)))
+                        // The path rules look at the matched operation, and an unknown path has none, so the request
+                        // path is taken from the message text instead.
                         .withRule(
                                 "Actuator endpoints are operational, not part of the documented API",
                                 allOf(

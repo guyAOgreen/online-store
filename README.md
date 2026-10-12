@@ -164,7 +164,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 
 * **400** when the request itself is wrong: malformed JSON, a duplicated key, an unknown field (which is how a client-supplied `id` is rejected), a missing or blank string, more than 255 characters or a NUL character, a fractional ID, a missing or empty `products` array, the same product listed twice, or a path or query value that cannot be converted.
 * **404** when the resource named in the URL does not exist.
-* **415** when a create is sent with a `Content-Type` other than `application/json`.
+* **415** when a create is sent with a `Content-Type` that is not JSON (`application/json`, or any `application/*+json`).
 * **422** when the body is well formed but references a customer or product that does not exist. Every missing product ID is named, so one correction fixes the request.
 
 **Search semantics.** `q` is split on whitespace; a customer matches when every word is a case-insensitive substring of their name, in any order, so `ann` matches `Dianne Lemke` and `ed glover` matches only `Ed Glover`. A query that is empty or only whitespace lists everyone. `%`, `_` and `\` match themselves, and a character no name can contain (a NUL) matches nothing, without a client error. Matching runs in the database in one statement.
