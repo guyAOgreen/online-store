@@ -1,3 +1,12 @@
+server:
+  compression:
+    # The list responses are hundreds of kilobytes to megabytes of repetitive JSON (#9); gzip cuts them several-fold
+    # for a client that sends Accept-Encoding. Tomcat's minimum size (2 KB by default) is only applied when the
+    # Content-Length is known, and Spring streams JSON chunked, so in practice every JSON body is compressed.
+    # Compression is between the application and its clients only; the database round trips the rest of #9 is about
+    # are unaffected either way.
+    enabled: true
+    mime-types: application/json,application/problem+json
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5433/store

@@ -19,9 +19,12 @@ import org.springframework.test.web.servlet.MockMvc;
  * Base for tests that need the real application against PostgreSQL. Tests are deliberately not transactional so they
  * observe the same transaction boundaries, lazy loading and query counts as production. Hibernate statistics are
  * switched on so a test can assert how many SQL statements a request issued; the per-session metrics log that comes
- * with them is silenced because it would print after every request.
+ * with them is silenced because it would print after every request. The application listens on a real port as well as
+ * answering {@link MockMvc}, so a test that needs the servlet container itself (response compression, #9) shares this
+ * context rather than starting a second database.
  */
 @SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "spring.jpa.properties.hibernate.generate_statistics=true",
             "logging.level.org.hibernate.engine.internal.StatisticalLoggingSessionEventListener=WARN"
@@ -47,6 +50,11 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void resetStatistics() {
+        clearStatistics();
+    }
+
+    /** Starts the statement and entity counts again from zero, for a test that measures more than one request. */
+    protected void clearStatistics() {
         hibernateStatistics().clear();
     }
 

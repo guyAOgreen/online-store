@@ -1,0 +1,24 @@
+-- Index the foreign key from an order to its customer (#9). The customer
+-- search filters customers first and then fetches their orders in the same
+-- statement; without this index PostgreSQL has to read the whole of "order"
+-- for every search, however few customers match, so the cost of a search grows
+-- with the number of orders rather than with the number of matches. The full
+-- customer listing joins every order anyway and is unaffected. The product
+-- side already has its indexes (4-products).
+--
+-- CONCURRENTLY: an ordinary CREATE INDEX holds a SHARE lock on "order" for the
+-- whole build, which blocks order inserts from an application instance still
+-- running; the concurrent build only blocks other DDL on the table. It cannot
+-- run inside a transaction block, so the changeset is marked
+-- runInTransaction: false, and Liquibase runs this statement in autocommit
+-- mode.
+--
+-- Failure and recovery: if the build fails or is interrupted, PostgreSQL leaves
+-- an INVALID index of this name behind. Liquibase does not record the
+-- changeset, so the next start-up runs this statement again and fails with
+-- "relation idx_order_customer_id already exists". That is intended: recovery
+-- is DROP INDEX idx_order_customer_id and a restart. IF NOT EXISTS is
+-- deliberately not used, because it would turn that retry into a recorded
+-- success with an index the planner never uses.
+
+CREATE INDEX CONCURRENTLY idx_order_customer_id ON "order" (customer_id);

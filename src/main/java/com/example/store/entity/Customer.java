@@ -16,6 +16,10 @@ public class Customer {
 
     private String name;
 
+    /**
+     * Ordered by ID so the nested array of a customer response is the same on every call (#9), as on the other side.
+     */
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OrderBy("id")
     private List<Order> orders = new ArrayList<>();
 }

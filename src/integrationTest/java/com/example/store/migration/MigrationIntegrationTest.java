@@ -31,7 +31,7 @@ class MigrationIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(applied)
                 .extracting(row -> row.get("id"))
-                .containsExactly("1-schema", "2-data", "3-sequences", "4-products");
+                .containsExactly("1-schema", "2-data", "3-sequences", "4-products", "5-order-customer-index");
         assertThat(applied).extracting(row -> row.get("exectype")).containsOnly("EXECUTED");
     }
 
@@ -40,7 +40,8 @@ class MigrationIntegrationTest extends AbstractIntegrationTest {
         try (LiquibaseRunner liquibase =
                 LiquibaseRunner.open(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
             assertThat(liquibase.unrunChangeSetIds()).isEmpty();
-            assertThat(liquibase.allChangeSetIds()).containsExactly("1-schema", "2-data", "3-sequences", "4-products");
+            assertThat(liquibase.allChangeSetIds())
+                    .containsExactly("1-schema", "2-data", "3-sequences", "4-products", "5-order-customer-index");
         }
     }
 }
