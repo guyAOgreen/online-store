@@ -23,9 +23,10 @@ import static com.atlassian.oai.validator.whitelist.rule.WhitelistRules.messageH
  * a response that gains or loses a field, or an endpoint that gains a status code, fails the suite until the document
  * says so.
  *
- * <p>Request bodies and parameters are deliberately not validated: the 4xx tests send malformed, unknown and
- * over-length input on purpose, and what matters there is that the resulting error is documented. The actuator paths
- * are operational rather than part of the API and are the one exception to "the path must be documented".
+ * <p>Request bodies, parameters and content types are deliberately not validated: the 4xx tests send malformed, unknown
+ * and over-length input and the wrong media type on purpose, and what matters there is that the resulting error is
+ * documented. The actuator paths are operational rather than part of the API and are the one exception to "the path
+ * must be documented".
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class OpenApiContractConfig {
@@ -40,6 +41,7 @@ public class OpenApiContractConfig {
                 .withLevelResolver(LevelResolver.create()
                         .withLevel("validation.request.body", ValidationReport.Level.IGNORE)
                         .withLevel("validation.request.parameter", ValidationReport.Level.IGNORE)
+                        .withLevel("validation.request.contentType", ValidationReport.Level.IGNORE)
                         .build())
                 // The path rules look at the matched operation, and an unknown path has none, so the request path is
                 // taken from the message text instead.

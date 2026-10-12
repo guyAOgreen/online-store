@@ -40,6 +40,11 @@ class OpenApiContractIntegrationTest extends AbstractIntegrationTest {
                 .get("id")
                 .asLong();
         exchange("POST", "/products", json(post("/products"), Map.of("description", " ")), 400);
+        exchange(
+                "POST",
+                "/products",
+                post("/products").contentType(MediaType.TEXT_PLAIN).content("Lamp"),
+                415);
         exchange("GET", "/products", get("/products"), 200);
         exchange("GET", "/products/{id}", get("/products/{id}", product), 200);
         exchange("GET", "/products/{id}", get("/products/{id}", ABSENT_ID), 404);
@@ -47,12 +52,22 @@ class OpenApiContractIntegrationTest extends AbstractIntegrationTest {
 
         exchange("POST", "/customer", json(post("/customer"), Map.of("name", "Ada Lovelace")), 201);
         exchange("POST", "/customer", json(post("/customer"), Map.of("name", "Ada", "id", 1)), 400);
+        exchange(
+                "POST",
+                "/customer",
+                post("/customer").contentType(MediaType.TEXT_PLAIN).content("name=Ada"),
+                415);
         exchange("GET", "/customer", get("/customer"), 200);
         exchange("GET", "/customer", get("/customer").param("q", "ann"), 200);
 
         exchange("POST", "/order", json(post("/order"), orderBody(1, product)), 201);
         exchange("POST", "/order", json(post("/order"), orderBody(1, product, product)), 400);
         exchange("POST", "/order", json(post("/order"), orderBody(1, ABSENT_ID)), 422);
+        exchange(
+                "POST",
+                "/order",
+                post("/order").contentType(MediaType.TEXT_PLAIN).content("description=x"),
+                415);
         exchange("GET", "/order", get("/order"), 200);
         exchange("GET", "/order/{id}", get("/order/{id}", 1), 200);
         exchange("GET", "/order/{id}", get("/order/{id}", ABSENT_ID), 404);

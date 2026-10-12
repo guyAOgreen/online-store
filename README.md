@@ -148,13 +148,13 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 |-----------------|---------|---------|---------------|
 | `GET /customer` | every customer with the IDs and descriptions of their orders | 200 | |
 | `GET /customer?q=words` | customers whose name contains every word of `q` | 200 | |
-| `POST /customer` | create a customer from `{"name"}` | 201 | 400 |
+| `POST /customer` | create a customer from `{"name"}` | 201 | 400, 415 |
 | `GET /order` | every order with its customer and products | 200 | |
 | `GET /order/{id}` | one order | 200 | 400, 404 |
-| `POST /order` | create an order from `{"description", "customer": {"id"}, "products": [{"id"}, …]}` | 201 | 400, 422 |
+| `POST /order` | create an order from `{"description", "customer": {"id"}, "products": [{"id"}, …]}` | 201 | 400, 415, 422 |
 | `GET /products` | every product with the IDs of the orders containing it | 200 | |
 | `GET /products/{id}` | one product | 200 | 400, 404 |
-| `POST /products` | create a product from `{"description"}` | 201 | 400 |
+| `POST /products` | create a product from `{"description"}` | 201 | 400, 415 |
 
 `/products` is plural because the assignment names it so; `/order` and `/customer` keep their original paths.
 
@@ -164,6 +164,7 @@ IDs are `BIGSERIAL` columns assigned by PostgreSQL; the API never accepts one on
 
 * **400** when the request itself is wrong: malformed JSON, a duplicated key, an unknown field (which is how a client-supplied `id` is rejected), a missing or blank string, more than 255 characters or a NUL character, a fractional ID, a missing or empty `products` array, the same product listed twice, or a path or query value that cannot be converted.
 * **404** when the resource named in the URL does not exist.
+* **415** when a create is sent with a `Content-Type` other than `application/json`.
 * **422** when the body is well formed but references a customer or product that does not exist. Every missing product ID is named, so one correction fixes the request.
 
 **Search semantics.** `q` is split on whitespace; a customer matches when every word is a case-insensitive substring of their name, in any order, so `ann` matches `Dianne Lemke` and `ed glover` matches only `Ed Glover`. A query that is empty or only whitespace lists everyone. `%`, `_` and `\` match themselves, and a character no name can contain (a NUL) matches nothing, without a client error. Matching runs in the database in one statement.
